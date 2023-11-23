@@ -15,6 +15,7 @@ editor: visual
 #by default, nowadays no need, but the prof use it as standard practice
 #note --- below this is the end of the yaml
 ---
+
 ```{r}
 options(max.print=1000000)
 ```
@@ -37,6 +38,7 @@ pacman::p_load(tmap, sf, tidyverse)
 ## Importing Geospatial Data
 
 ### Importing the Boundaries
+
 The Masterplan 2014 Subzone Boundary is a shapefile that need to be imported. It will cut singapore into different subzones
 
 i recall prof was saying we should project to Singapore 3414. but either code seem to work? i think it is depending on which code i put in first. if i swap these 2 code around. it doesn't seem to work. MP2019 shapefile is still in WGS84 (degree) instead of SVY21 (meters)
@@ -54,6 +56,7 @@ mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019") %>% st_transform(c
 #WGS84 SVY21
 #CRS coordinate representation system for Singapore is 3414
 ```
+
 ### Importing the cycling path
 
 this is different from the earlier where this is SVY21
@@ -62,6 +65,7 @@ this is different from the earlier where this is SVY21
 cyclingpath = st_read(dsn = "data/geospatial", 
                          layer = "CyclingPathGazette")
 ```
+
 I think i get it, the difference is base on the original file. So for WGS84 or SVY21, it is due to the shape file's original coordinate system? I don't recall so though.
 
 ### Importing Preschool Location
@@ -95,9 +99,11 @@ listings_sf <- st_as_sf(listings,
 
 glimpse(listings_sf)
 ```
+
 ## Doing Some Initial Play with the Data
 
 ### DataTable
+
 ```{r}
 st_geometry(mpsz)
 ```
@@ -127,6 +133,7 @@ plot(mpsz["PLN_AREA_N"])
 ## Changing the Projection
 
 First we need to check the data
+
 ```{r}
 st_crs(mpsz)
 ```
@@ -155,7 +162,7 @@ preschool3414 <- st_transform(preschool,
 st_crs(preschool3414)
 ```
 
-##The Scenarios:
+## The Scenarios:
 
 ### Scenario 1
 
@@ -164,11 +171,13 @@ The authority is planning to upgrade the exiting cycling path. To do so, they ne
 ### Scenario 1 Solution:
 
 Question: what is the difference between PLANNING_A and PLANNING_1. but given that PLANNING_A is all NA, why is showing in the plot for buffer but not for the cycling path itself?
+
 ```{r}
 buffer_cycling <- st_buffer(cyclingpath, 
                                dist=5, nQuadSegs = 30)
 glimpse(buffer_cycling)
 ```
+
 ```{r}
 plot(cyclingpath)
 ```
@@ -183,7 +192,6 @@ calculating the buffer area i.e. convert geometry into area then summing it up
 buffer_cycling$AREA <- st_area(buffer_cycling)
 sum(buffer_cycling$AREA)
 ```
-
 
 ### Scenario 2
 
@@ -203,6 +211,7 @@ summary(mpsz3414$`PreSch Count`)
 ```{r}
 top_n(mpsz3414, 1, `PreSch Count`)
 ```
+
 #### Calulating the density of pre-school by planning subzone
 
 ```{r}
@@ -233,6 +242,7 @@ ggplot(data=mpsz3414,
       x = "Pre-school density (per km sq)",
       y = "Frequency")
 ```
+
 ```{r}
 ggplot(data=mpsz3414, 
        aes(y = `PreSch Count`, 
@@ -246,8 +256,7 @@ ggplot(data=mpsz3414,
       y = "Pre-school count")
 ```
 
-
-BELOW ARE NOT FOR THIS EX
+## BELOW ARE NOT FOR THIS EX
 
 ### Preparing the Flow Data
 
@@ -296,6 +305,3 @@ mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019") %>% st_transform(c
 #CRS coordinate representation system for Singapore is 3414
 ```
 
-## Working with
-
-For the purpose of this exercise
