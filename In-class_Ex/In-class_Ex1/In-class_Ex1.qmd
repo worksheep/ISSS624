@@ -31,11 +31,57 @@ pacman::p_load(tmap, sf, tidyverse)
 #pacman:: call the package. then p_load is a function within pacman
 ```
 
-## Preparing the Flow Data
+## Importing Geospatial Data
 
-### Importing the OD data
+### Importing the Boundaries
+The Masterplan 2014 Subzone Boundary is a shapefile that need to be imported. It will cut singapore into different subzones
 
-Firt, we will import the Passenger Volume by Origin Destination Bus Stops dataset downloaded from LTA DataMall by using read_csv() of readr package
+
+```{r}
+#| eval: false
+
+mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019") %>% st_transform(crs = 3414)
+
+#WGS84 SVY21
+#CRS coordinate representation system for Singapore is 3414
+```
+i recall prof was saying we should project to Singapore 3414. but either code seem to work?
+
+```{r}
+mpsz = st_read(dsn = "data/geospatial", 
+                  layer = "MPSZ-2019")
+```
+```{r}
+st_geometry(mpsz)
+```
+```{r}
+glimpse(mpsz)
+```
+
+
+
+### Importing the cycling path
+
+this is different from the earlier where this is SVY21
+
+```{r}
+cyclingpath = st_read(dsn = "data/geospatial", 
+                         layer = "CyclingPathGazette")
+```
+I think i get it, the difference is base on the original file. So for WGS84 or SVY21, it is due to the shape file's original coordinate system? I don't recall so though.
+
+### Importing Preschool Location
+
+```{r}
+preschool = st_read("data/geospatial/PreSchoolsLocation.kml")
+```
+
+
+### Preparing the Flow Data
+
+#### Importing the OD data
+
+First, we will import the Passenger Volume by Origin Destination Bus Stops dataset downloaded from LTA DataMall by using read_csv() of readr package
 
 ```{r}
 #| eval: false
