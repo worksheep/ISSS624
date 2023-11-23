@@ -14,7 +14,11 @@ execute:
 editor: visual
 #by default, nowadays no need, but the prof use it as standard practice
 #note --- below this is the end of the yaml
+
 ---
+```{r}
+options(max.print=1000000)
+```
 
 ## Getting Started
 
@@ -36,6 +40,12 @@ pacman::p_load(tmap, sf, tidyverse)
 ### Importing the Boundaries
 The Masterplan 2014 Subzone Boundary is a shapefile that need to be imported. It will cut singapore into different subzones
 
+i recall prof was saying we should project to Singapore 3414. but either code seem to work?
+
+```{r}
+mpsz = st_read(dsn = "data/geospatial", 
+                  layer = "MPSZ-2019")
+```
 
 ```{r}
 #| eval: false
@@ -45,21 +55,6 @@ mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019") %>% st_transform(c
 #WGS84 SVY21
 #CRS coordinate representation system for Singapore is 3414
 ```
-i recall prof was saying we should project to Singapore 3414. but either code seem to work?
-
-```{r}
-mpsz = st_read(dsn = "data/geospatial", 
-                  layer = "MPSZ-2019")
-```
-```{r}
-st_geometry(mpsz)
-```
-```{r}
-glimpse(mpsz)
-```
-
-
-
 ### Importing the cycling path
 
 this is different from the earlier where this is SVY21
@@ -75,6 +70,55 @@ I think i get it, the difference is base on the original file. So for WGS84 or S
 ```{r}
 preschool = st_read("data/geospatial/PreSchoolsLocation.kml")
 ```
+
+the main diff is this is KML file instead of shapefile. but seems like i can still use st_read, just that for this i don't need to specify dsn and layer.
+
+## Doing Some Initial Play with the Data
+
+### DataTable
+```{r}
+st_geometry(mpsz)
+```
+
+```{r}
+glimpse(mpsz)
+```
+
+```{r}
+head(mpsz, n=5)
+```
+
+### Plotting a Map
+
+```{r}
+plot(mpsz)
+```
+
+```{r}
+plot(st_geometry(mpsz))
+```
+
+```{r}
+plot(mpsz["PLN_AREA_N"])
+```
+
+## Changing the Projection
+
+First we need to check the data
+```{r}
+st_crs(mpsz)
+```
+
+actually after checking i saw that prof used another command to change the projection . What is the difference between st_set_crs and st_transform. from what is googled, st_set_crs just update the metadata but doesn't change the coordinates itself
+
+```{r}
+mpsz3414 <- st_set_crs(mpsz, 3414)
+```
+
+```{r}
+st_crs(mpsz)
+```
+
 
 
 ### Preparing the Flow Data
