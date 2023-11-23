@@ -5,8 +5,18 @@ website:
   title: "ISSS624"
   navbar:
     left:
-      - href: index.qmd
-        text: Home
+      - text: Home
+        href: index.html
+      - text: Hands-on Exercises
+        menu: 
+          - text: Hands-on Exercise 1
+            href: Hands-on Ex/Hands-on_Ex1/Hands-on_Ex1.html
+      - text: In-class Exercise
+        menu: 
+          - text: In-class Exercise 1
+            href: In-class_Ex/In-class_Ex1/In-class_Ex1.html
+          - text: In-class Exercise 2
+            href: In-class_Ex/In-class_Ex2/In-class_Ex2.html
       - about.qmd
 
 format:

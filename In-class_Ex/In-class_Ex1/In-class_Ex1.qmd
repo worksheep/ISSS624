@@ -1,0 +1,83 @@
+---
+#note --- above this is the start of the yaml line
+title: "In-class Exercise 1: My First Date with Geospatial Data Analytics"
+date: "18 November 2023"
+date-modified: "last-modified"
+format: html
+execute: 
+  echo: true
+  #echo will run all code chunk
+  eval: true
+  #
+  warning: false
+  #warning messages not displayed
+editor: visual
+#by default, nowadays no need, but the prof use it as standard practice
+#note --- below this is the end of the yaml
+---
+
+## Getting Started
+
+The code chunk below load the following packages:
+
+\- tmap : for thematic mapping\
+- sf : for geospatial data handling\
+- tidyverse: for non-spatial data handling
+
+```{r}
+pacman::p_load(tmap, sf, tidyverse)
+
+# note : this is the R code for quatero, usually in R, we would have use library(tamp) etc
+#pacman:: call the package. then p_load is a function within pacman
+```
+
+## Preparing the Flow Data
+
+### Importing the OD data
+
+Firt, we will import the Passenger Volume by Origin Destination Bus Stops dataset downloaded from LTA DataMall by using read_csv() of readr package
+
+```{r}
+#| eval: false
+odbus <- read.csv("data/aspatial/origin_destination_bus_202308.csv")
+```
+
+```{r}
+#| eval: false
+odbus$ORIGIN_PT_CODE <- as.factor(odbus$ORIGIN_PT_CODE)
+odbus$DESTINATION_PT_CODE <- as.factor(odbus$DESTINATION_PT_CODE)
+```
+
+### Extracting the study data
+
+For the purpose of this exercise, we will extract commuting flows on weekday and between 7 and 9 o'clock
+
+```{r}
+#| eval: false
+
+origtrip_7_9 <- odbus %>%
+  filter(DAY_TYPE == "WEEKDAY") %>%
+  filter(TIME_PER_HOUR >= 7 & TIME_PER_HOUR <= 9) %>%
+  group_by(ORIGIN_PT_CODE) %>%
+  summarise(TRIPS= sum(TOTAL_TRIPS))
+
+#for beginners, we may not want to use pipe %>%, we can chop up the code into individual blocks, to understand the output step by step
+
+```
+
+```{r}
+#| eval: false
+
+busstop <- st_read(dsn = "data/geospatial", layer="BusStop") %>% st_transform(crs = 3414)
+
+# dsn is data geospatial
+
+mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019") %>% st_transform(crs = 3414)
+
+#WGS84 SVY21
+#CRS coordinate representation system for Singapore is 3414
+```
+
+## Working with
+
+For the purpose of this exercise

@@ -4,7 +4,7 @@
     "href": "index.html",
     "title": "ISSS624",
     "section": "",
-    "text": "This is a Quarto website.\nTo learn more about Quarto websites visit https://quarto.org/docs/websites.\n\n1 + 1\n\n[1] 2"
+    "text": "This is a Quarto website.\nTo learn more about Quarto websites visit this is an edit https://quarto.org/docs/websites.\n\n1 + 1\n\n[1] 2"
   },
   {
     "objectID": "about.html",
@@ -12,5 +12,40 @@
     "title": "About",
     "section": "",
     "text": "About this site\n\n1 + 1\n\n[1] 2"
+  },
+  {
+    "objectID": "In-class_Ex/In-class_Ex1/In-class_Ex1.html",
+    "href": "In-class_Ex/In-class_Ex1/In-class_Ex1.html",
+    "title": "In-class Exercise 1: My First Date with Geospatial Data Analytics",
+    "section": "",
+    "text": "The code chunk below load the following packages:\n- tmap : for thematic mapping\n- sf : for geospatial data handling\n- tidyverse: for non-spatial data handling\n\npacman::p_load(tmap, sf, tidyverse)\n\n# note : this is the R code for quatero, usually in R, we would have use library(tamp) etc\n#pacman:: call the package. then p_load is a function within pacman"
+  },
+  {
+    "objectID": "In-class_Ex/In-class_Ex1/In-class_Ex1.html#getting-started",
+    "href": "In-class_Ex/In-class_Ex1/In-class_Ex1.html#getting-started",
+    "title": "In-class Exercise 1: My First Date with Geospatial Data Analytics",
+    "section": "",
+    "text": "The code chunk below load the following packages:\n- tmap : for thematic mapping\n- sf : for geospatial data handling\n- tidyverse: for non-spatial data handling\n\npacman::p_load(tmap, sf, tidyverse)\n\n# note : this is the R code for quatero, usually in R, we would have use library(tamp) etc\n#pacman:: call the package. then p_load is a function within pacman"
+  },
+  {
+    "objectID": "In-class_Ex/In-class_Ex1/In-class_Ex1.html#preparing-the-flow-data",
+    "href": "In-class_Ex/In-class_Ex1/In-class_Ex1.html#preparing-the-flow-data",
+    "title": "In-class Exercise 1: My First Date with Geospatial Data Analytics",
+    "section": "Preparing the Flow Data",
+    "text": "Preparing the Flow Data\n\nImporting the OD data\nFirt, we will import the Passenger Volume by Origin Destination Bus Stops dataset downloaded from LTA DataMall by using read_csv() of readr package\n\nodbus &lt;- read.csv(\"data/aspatial/origin_destination_bus_202308.csv\")\n\n\nodbus$ORIGIN_PT_CODE &lt;- as.factor(odbus$ORIGIN_PT_CODE)\nodbus$DESTINATION_PT_CODE &lt;- as.factor(odbus$DESTINATION_PT_CODE)\n\n\n\nExtracting the study data\nFor the purpose of this exercise, we will extract commuting flows on weekday and between 7 and 9 o’clock\n\norigtrip_7_9 &lt;- odbus %&gt;%\n  filter(DAY_TYPE == \"WEEKDAY\") %&gt;%\n  filter(TIME_PER_HOUR &gt;= 7 & TIME_PER_HOUR &lt;= 9) %&gt;%\n  group_by(ORIGIN_PT_CODE) %&gt;%\n  summarise(TRIPS= sum(TOTAL_TRIPS))\n\n#for beginners, we may not want to use pipe %&gt;%, we can chop up the code into individual blocks, to understand the output step by step\n\n\nbusstop &lt;- st_read(dsn = \"data/geospatial\", layer=\"BusStop\") %&gt;% st_transform(crs = 3414)\n\n# dsn is data geospatial\n\nmpsz &lt;- st_read(dsn = \"data/geospatial\", layer = \"MPSZ-2019\") %&gt;% st_transform(crs = 3414)\n\n#WGS84 SVY21\n#CRS coordinate representation system for Singapore is 3414"
+  },
+  {
+    "objectID": "In-class_Ex/In-class_Ex1/In-class_Ex1.html#working-with",
+    "href": "In-class_Ex/In-class_Ex1/In-class_Ex1.html#working-with",
+    "title": "In-class Exercise 1: My First Date with Geospatial Data Analytics",
+    "section": "Working with",
+    "text": "Working with\nFor the purpose of this exercise"
+  },
+  {
+    "objectID": "In-class_Ex/In-class_Ex1/data/geospatial/MPSZ-2019.html",
+    "href": "In-class_Ex/In-class_Ex1/data/geospatial/MPSZ-2019.html",
+    "title": "ISSS624",
+    "section": "",
+    "text": "&lt;!DOCTYPE qgis PUBLIC ‘http://mrcc.com/qgis.dtd’ ‘SYSTEM’&gt;     dataset\n\n\n        0 0     false"
   }
 ]
