@@ -304,4 +304,3 @@ mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019") %>% st_transform(c
 #WGS84 SVY21
 #CRS coordinate representation system for Singapore is 3414
 ```
-

@@ -1,0 +1,21 @@
+---
+title: "In-class_Ex2"
+date: "25 November 2023"
+date-modified: "last-modified"
+format: html
+execute: 
+  echo: true
+  #echo will run all code chunk
+  eval: true
+  #
+  warning: false
+  #warning messages not displayed
+editor: visual
+#by default, nowadays no need, but the prof use it as standard practice
+#note --- below this is the end of the yaml
+---
+
+```{r}
+pacman::p_load(tmap, sf, tidyverse)
+```
+
