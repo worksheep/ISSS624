@@ -386,6 +386,10 @@ Moran I statistic       Expectation          Variance
       0.300749970      -0.011494253       0.004348351 </code></pre>
 </div>
 </div>
+<p>The Moran’s I test is a measure of spatial autocorrelation, which is the correlation of a variable with itself through space.</p>
+<p>The Moran’s I statistic is 0.300749970. This value ranges from -1 (indicating perfect dispersion) to +1 (perfect correlation). A zero value indicates a random spatial pattern. The positive Moran’s I statistic indicates a positive spatial autocorrelation, which means that similar values of <code>hunan$GDPPC</code> are clustered together in the Hunan region.</p>
+<p>The p-value is 1.095e-06, which is less than significance level of 0.05. The observed spatial pattern is statistically significantly different from random.</p>
+<p>So, based on this output, there is significant positive spatial autocorrelation in the <code>hunan$GDPPC</code> variable in the Hunan region.</p>
 <section id="monte-carlo-morans-i" class="level4">
 <h4 class="anchored" data-anchor-id="monte-carlo-morans-i">Monte Carlo Moran’s I</h4>
 <div class="cell">
@@ -408,6 +412,7 @@ statistic = 0.30075, observed rank = 1000, p-value = 0.001
 alternative hypothesis: greater</code></pre>
 </div>
 </div>
+<p>There is indeed correlation and clustering of the region</p>
 </section>
 <section id="visualising-1" class="level4">
 <h4 class="anchored" data-anchor-id="visualising-1">Visualising</h4>
