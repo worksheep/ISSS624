@@ -10,17 +10,17 @@ website:
       - text: Hands-on Exercises
         menu: 
           - text: Hands-on Exercise 1a
-            href: Hands-on Ex/Hands-on_Ex1/Hands-on_Ex1a.html
+            href: Hands-on Ex/Hands-on_Ex1a/Hands-on_Ex1a.html
           - text: Hands-on Exercise 1b
-            href: Hands-on Ex/Hands-on_Ex1/Hands-on_Ex1b.html
+            href: Hands-on Ex/Hands-on_Ex1b/Hands-on_Ex1b.html
           - text: Hands-on Exercise 2a
-            href: Hands-on Ex/Hands-on_Ex1/Hands-on_Ex2a.html
+            href: Hands-on Ex/Hands-on_Ex2a/Hands-on_Ex2a.html
           - text: Hands-on Exercise 2b
-            href: Hands-on Ex/Hands-on_Ex1/Hands-on_Ex2b.html
+            href: Hands-on Ex/Hands-on_Ex2b/Hands-on_Ex2b.html
           - text: Hands-on Exercise 2c
-            href: Hands-on Ex/Hands-on_Ex1/Hands-on_Ex2c.html
+            href: Hands-on Ex/Hands-on_Ex2c/Hands-on_Ex2c.html
           - text: Hands-on Exercise 3a
-            href: Hands-on Ex/Hands-on_Ex1/Hands-on_Ex3a.html
+            href: Hands-on Ex/Hands-on_Ex3a/Hands-on_Ex3a.html
             
       - text: In-class Exercise
         menu: 
