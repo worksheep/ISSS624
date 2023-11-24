@@ -243,5 +243,82 @@
     "title": "ISSS624",
     "section": "",
     "text": "&lt;!DOCTYPE qgis PUBLIC ‘http://mrcc.com/qgis.dtd’ ‘SYSTEM’&gt;     dataset\n\n\n        0 0     false"
+  },
+  {
+    "objectID": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html",
+    "href": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html",
+    "title": "Hands-on_Ex2b",
+    "section": "",
+    "text": "pacman::p_load(sf, spdep, tmap, tidyverse)"
+  },
+  {
+    "objectID": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html#getting-started",
+    "href": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html#getting-started",
+    "title": "Hands-on_Ex2b",
+    "section": "",
+    "text": "pacman::p_load(sf, spdep, tmap, tidyverse)"
+  },
+  {
+    "objectID": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html#import-data",
+    "href": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html#import-data",
+    "title": "Hands-on_Ex2b",
+    "section": "Import Data",
+    "text": "Import Data\n\nImport basemap\nHunan\n\nhunan &lt;- st_read(dsn = \"data/geospatial\", \n                 layer = \"Hunan\")\n\nReading layer `Hunan' from data source \n  `C:\\worksheep\\ISSS624\\Hands-on_Ex\\Hands-on_Ex2b\\data\\geospatial' \n  using driver `ESRI Shapefile'\nSimple feature collection with 88 features and 7 fields\nGeometry type: POLYGON\nDimension:     XY\nBounding box:  xmin: 108.7831 ymin: 24.6342 xmax: 114.2544 ymax: 30.12812\nGeodetic CRS:  WGS 84\n\n\n\n\nImport metadata\n\nhunan2012 &lt;- read_csv(\"data/aspatial/Hunan_2012.csv\")\n\n\n\nJoining the data together\n\nhunan &lt;- left_join(hunan,hunan2012) %&gt;%\n  select(1:4, 7, 15)"
+  },
+  {
+    "objectID": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html#visualising",
+    "href": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html#visualising",
+    "title": "Hands-on_Ex2b",
+    "section": "Visualising",
+    "text": "Visualising\n\nequal &lt;- tm_shape(hunan) +\n  tm_fill(\"GDPPC\",\n          n = 5,\n          style = \"equal\") +\n  tm_borders(alpha = 0.5) +\n  tm_layout(main.title = \"Equal interval classification\")\n\nquantile &lt;- tm_shape(hunan) +\n  tm_fill(\"GDPPC\",\n          n = 5,\n          style = \"quantile\") +\n  tm_borders(alpha = 0.5) +\n  tm_layout(main.title = \"Equal quantile classification\")\n\ntmap_arrange(equal, \n             quantile, \n             asp=1, \n             ncol=2)"
+  },
+  {
+    "objectID": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html#calculating-spatial-weight",
+    "href": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html#calculating-spatial-weight",
+    "title": "Hands-on_Ex2b",
+    "section": "Calculating Spatial Weight",
+    "text": "Calculating Spatial Weight\n\nwm_q &lt;- poly2nb(hunan, \n                queen=TRUE)\nsummary(wm_q)\n\nNeighbour list object:\nNumber of regions: 88 \nNumber of nonzero links: 448 \nPercentage nonzero weights: 5.785124 \nAverage number of links: 5.090909 \nLink number distribution:\n\n 1  2  3  4  5  6  7  8  9 11 \n 2  2 12 16 24 14 11  4  2  1 \n2 least connected regions:\n30 65 with 1 link\n1 most connected region:\n85 with 11 links\n\n\n\nrswm_q &lt;- nb2listw(wm_q, \n                   style=\"W\", \n                   zero.policy = TRUE)\nrswm_q\n\nCharacteristics of weights list object:\nNeighbour list object:\nNumber of regions: 88 \nNumber of nonzero links: 448 \nPercentage nonzero weights: 5.785124 \nAverage number of links: 5.090909 \n\nWeights style: W \nWeights constants summary:\n   n   nn S0       S1       S2\nW 88 7744 88 37.86334 365.9147"
+  },
+  {
+    "objectID": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html#global-spatial-autocorrelation",
+    "href": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html#global-spatial-autocorrelation",
+    "title": "Hands-on_Ex2b",
+    "section": "Global Spatial Autocorrelation",
+    "text": "Global Spatial Autocorrelation\n\nMaron’s I test\n\nmoran.test(hunan$GDPPC, \n           listw=rswm_q, \n           zero.policy = TRUE, \n           na.action=na.omit)\n\n\n    Moran I test under randomisation\n\ndata:  hunan$GDPPC  \nweights: rswm_q    \n\nMoran I statistic standard deviate = 4.7351, p-value = 1.095e-06\nalternative hypothesis: greater\nsample estimates:\nMoran I statistic       Expectation          Variance \n      0.300749970      -0.011494253       0.004348351 \n\n\n\nMonte Carlo Moran’s I\n\nset.seed(1234)\nbperm= moran.mc(hunan$GDPPC, \n                listw=rswm_q, \n                nsim=999, \n                zero.policy = TRUE, \n                na.action=na.omit)\nbperm\n\n\n    Monte-Carlo simulation of Moran I\n\ndata:  hunan$GDPPC \nweights: rswm_q  \nnumber of simulations + 1: 1000 \n\nstatistic = 0.30075, observed rank = 1000, p-value = 0.001\nalternative hypothesis: greater\n\n\n\n\nVisualising\n\nmean(bperm$res[1:999])\n\n[1] -0.01504572\n\n\n\nvar(bperm$res[1:999])\n\n[1] 0.004371574\n\n\n\nsummary(bperm$res[1:999])\n\n    Min.  1st Qu.   Median     Mean  3rd Qu.     Max. \n-0.18339 -0.06168 -0.02125 -0.01505  0.02611  0.27593 \n\n\n\nhist(bperm$res, \n     freq=TRUE, \n     breaks=20, \n     xlab=\"Simulated Moran's I\")\nabline(v=0, \n       col=\"red\") \n\n\n\n\n\n\n\nGeary’s C test\n\ngeary.test(hunan$GDPPC, listw=rswm_q)\n\n\n    Geary C test under randomisation\n\ndata:  hunan$GDPPC \nweights: rswm_q \n\nGeary C statistic standard deviate = 3.6108, p-value = 0.0001526\nalternative hypothesis: Expectation greater than statistic\nsample estimates:\nGeary C statistic       Expectation          Variance \n        0.6907223         1.0000000         0.0073364 \n\n\n\nMonte Carlo Geary’s C\n\nset.seed(1234)\nbperm=geary.mc(hunan$GDPPC, \n               listw=rswm_q, \n               nsim=999)\nbperm\n\n\n    Monte-Carlo simulation of Geary C\n\ndata:  hunan$GDPPC \nweights: rswm_q \nnumber of simulations + 1: 1000 \n\nstatistic = 0.69072, observed rank = 1, p-value = 0.001\nalternative hypothesis: greater\n\n\n\n\nVisualising\n\nmean(bperm$res[1:999])\n\n[1] 1.004402\n\n\n\nsummary(bperm$res[1:999])\n\n   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. \n 0.7142  0.9502  1.0052  1.0044  1.0595  1.2722 \n\n\n\nhist(bperm$res, freq=TRUE, breaks=20, xlab=\"Simulated Geary c\")\nabline(v=1, col=\"red\")"
+  },
+  {
+    "objectID": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html#spatial-correlogram",
+    "href": "Hands-on_Ex/Hands-on_Ex2b/Hands-on_Ex2b.html#spatial-correlogram",
+    "title": "Hands-on_Ex2b",
+    "section": "Spatial Correlogram",
+    "text": "Spatial Correlogram\n\nMoran’s I Correlogram\n\nMI_corr &lt;- sp.correlogram(wm_q, \n                          hunan$GDPPC, \n                          order=6, \n                          method=\"I\", \n                          style=\"W\")\nplot(MI_corr)\n\n\n\n\n\nprint(MI_corr)\n\nSpatial correlogram for hunan$GDPPC \nmethod: Moran's I\n         estimate expectation   variance standard deviate Pr(I) two sided    \n1 (88)  0.3007500  -0.0114943  0.0043484           4.7351       2.189e-06 ***\n2 (88)  0.2060084  -0.0114943  0.0020962           4.7505       2.029e-06 ***\n3 (88)  0.0668273  -0.0114943  0.0014602           2.0496        0.040400 *  \n4 (88)  0.0299470  -0.0114943  0.0011717           1.2107        0.226015    \n5 (88) -0.1530471  -0.0114943  0.0012440          -4.0134       5.984e-05 ***\n6 (88) -0.1187070  -0.0114943  0.0016791          -2.6164        0.008886 ** \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\n\n\n\nGeary’s C Correlogram\n\nGC_corr &lt;- sp.correlogram(wm_q, \n                          hunan$GDPPC, \n                          order=6, \n                          method=\"C\", \n                          style=\"W\")\nplot(GC_corr)\n\n\n\n\n\nprint(GC_corr)\n\nSpatial correlogram for hunan$GDPPC \nmethod: Geary's C\n        estimate expectation  variance standard deviate Pr(I) two sided    \n1 (88) 0.6907223   1.0000000 0.0073364          -3.6108       0.0003052 ***\n2 (88) 0.7630197   1.0000000 0.0049126          -3.3811       0.0007220 ***\n3 (88) 0.9397299   1.0000000 0.0049005          -0.8610       0.3892612    \n4 (88) 1.0098462   1.0000000 0.0039631           0.1564       0.8757128    \n5 (88) 1.2008204   1.0000000 0.0035568           3.3673       0.0007592 ***\n6 (88) 1.0773386   1.0000000 0.0058042           1.0151       0.3100407    \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1"
+  },
+  {
+    "objectID": "Hands-on_Ex/Hands-on_Ex2c/Hands-on_Ex2c.html",
+    "href": "Hands-on_Ex/Hands-on_Ex2c/Hands-on_Ex2c.html",
+    "title": "Hands-on_Ex2c",
+    "section": "",
+    "text": "pacman::p_load(sf, spdep, tmap, tidyverse)"
+  },
+  {
+    "objectID": "Hands-on_Ex/Hands-on_Ex2c/Hands-on_Ex2c.html#getting-started",
+    "href": "Hands-on_Ex/Hands-on_Ex2c/Hands-on_Ex2c.html#getting-started",
+    "title": "Hands-on_Ex2c",
+    "section": "",
+    "text": "pacman::p_load(sf, spdep, tmap, tidyverse)"
+  },
+  {
+    "objectID": "Hands-on_Ex/Hands-on_Ex2c/Hands-on_Ex2c.html#import-data",
+    "href": "Hands-on_Ex/Hands-on_Ex2c/Hands-on_Ex2c.html#import-data",
+    "title": "Hands-on_Ex2c",
+    "section": "Import Data",
+    "text": "Import Data\n\nImport basemap\nHunan\n\nhunan &lt;- st_read(dsn = \"data/geospatial\", \n                 layer = \"Hunan\")\n\nReading layer `Hunan' from data source \n  `C:\\worksheep\\ISSS624\\Hands-on_Ex\\Hands-on_Ex2c\\data\\geospatial' \n  using driver `ESRI Shapefile'\nSimple feature collection with 88 features and 7 fields\nGeometry type: POLYGON\nDimension:     XY\nBounding box:  xmin: 108.7831 ymin: 24.6342 xmax: 114.2544 ymax: 30.12812\nGeodetic CRS:  WGS 84\n\n\n\n\nImport metadata\n\nhunan2012 &lt;- read_csv(\"data/aspatial/Hunan_2012.csv\")\n\n\n\nJoining the data together\n\nhunan &lt;- left_join(hunan,hunan2012) %&gt;%\n  select(1:4, 7, 15)"
+  },
+  {
+    "objectID": "Hands-on_Ex/Hands-on_Ex2c/Hands-on_Ex2c.html#visualising",
+    "href": "Hands-on_Ex/Hands-on_Ex2c/Hands-on_Ex2c.html#visualising",
+    "title": "Hands-on_Ex2c",
+    "section": "Visualising",
+    "text": "Visualising"
   }
 ]

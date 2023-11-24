@@ -14,3 +14,189 @@ editor: visual
 #by default, nowadays no need, but the prof use it as standard practice
 #note --- below this is the end of the yaml
 ---
+
+## Getting Started
+
+```{r}
+pacman::p_load(sf, spdep, tmap, tidyverse)
+```
+
+## Import Data
+
+### Import basemap
+
+Hunan
+
+```{r} 
+hunan <- st_read(dsn = "data/geospatial", 
+                 layer = "Hunan")
+```
+
+### Import metadata
+
+```{r} 
+hunan2012 <- read_csv("data/aspatial/Hunan_2012.csv")
+```
+
+### Joining the data together
+
+```{r}
+hunan <- left_join(hunan,hunan2012) %>%
+  select(1:4, 7, 15)
+```
+
+## Visualising
+
+```{r}
+equal <- tm_shape(hunan) +
+  tm_fill("GDPPC",
+          n = 5,
+          style = "equal") +
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "Equal interval classification")
+
+quantile <- tm_shape(hunan) +
+  tm_fill("GDPPC",
+          n = 5,
+          style = "quantile") +
+  tm_borders(alpha = 0.5) +
+  tm_layout(main.title = "Equal quantile classification")
+
+tmap_arrange(equal, 
+             quantile, 
+             asp=1, 
+             ncol=2)
+```
+
+## Calculating Spatial Weight
+
+```{r}
+wm_q <- poly2nb(hunan, 
+                queen=TRUE)
+summary(wm_q)
+```
+
+```{r}
+rswm_q <- nb2listw(wm_q, 
+                   style="W", 
+                   zero.policy = TRUE)
+rswm_q
+```
+
+## Global Spatial Autocorrelation
+
+### Maron's I test
+
+```{r}
+moran.test(hunan$GDPPC, 
+           listw=rswm_q, 
+           zero.policy = TRUE, 
+           na.action=na.omit)
+```
+
+#### Monte Carlo Moran's I
+
+```{r}
+set.seed(1234)
+bperm= moran.mc(hunan$GDPPC, 
+                listw=rswm_q, 
+                nsim=999, 
+                zero.policy = TRUE, 
+                na.action=na.omit)
+bperm
+```
+
+#### Visualising
+
+```{r}
+mean(bperm$res[1:999])
+```
+
+
+```{r}
+var(bperm$res[1:999])
+```
+
+
+```{r}
+summary(bperm$res[1:999])
+```
+
+
+```{r}
+hist(bperm$res, 
+     freq=TRUE, 
+     breaks=20, 
+     xlab="Simulated Moran's I")
+abline(v=0, 
+       col="red") 
+```
+
+
+### Geary's C test
+
+```{r}
+geary.test(hunan$GDPPC, listw=rswm_q)
+```
+
+#### Monte Carlo Geary's C
+
+```{r}
+set.seed(1234)
+bperm=geary.mc(hunan$GDPPC, 
+               listw=rswm_q, 
+               nsim=999)
+bperm
+```
+
+#### Visualising
+
+```{r}
+mean(bperm$res[1:999])
+```
+
+
+```{r}
+summary(bperm$res[1:999])
+```
+
+```{r}
+hist(bperm$res, freq=TRUE, breaks=20, xlab="Simulated Geary c")
+abline(v=1, col="red") 
+```
+
+## Spatial Correlogram
+
+### Moran's I Correlogram
+
+```{r}
+MI_corr <- sp.correlogram(wm_q, 
+                          hunan$GDPPC, 
+                          order=6, 
+                          method="I", 
+                          style="W")
+plot(MI_corr)
+```
+
+
+```{r}
+print(MI_corr)
+```
+
+
+### Geary's C Correlogram
+
+```{r}
+GC_corr <- sp.correlogram(wm_q, 
+                          hunan$GDPPC, 
+                          order=6, 
+                          method="C", 
+                          style="W")
+plot(GC_corr)
+```
+
+
+```{r}
+print(GC_corr)
+```
+

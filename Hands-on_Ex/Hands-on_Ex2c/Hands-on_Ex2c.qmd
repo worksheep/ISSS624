@@ -1,0 +1,49 @@
+---
+title: "Hands-on_Ex2c"
+date: "25 November 2023"
+date-modified: "last-modified"
+format: html
+execute: 
+  echo: true
+  #echo will run all code chunk
+  eval: true
+  #
+  warning: false
+  #warning messages not displayed
+editor: visual
+#by default, nowadays no need, but the prof use it as standard practice
+#note --- below this is the end of the yaml
+---
+
+## Getting Started
+
+```{r}
+pacman::p_load(sf, spdep, tmap, tidyverse)
+```
+
+## Import Data
+
+### Import basemap
+
+Hunan
+
+```{r}
+hunan <- st_read(dsn = "data/geospatial", 
+                 layer = "Hunan")
+```
+
+### Import metadata
+
+```{r}
+hunan2012 <- read_csv("data/aspatial/Hunan_2012.csv")
+```
+
+### Joining the data together
+
+```{r}
+hunan <- left_join(hunan,hunan2012) %>%
+  select(1:4, 7, 15)
+```
+
+## Visualising
+
