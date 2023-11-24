@@ -1,0 +1,23 @@
+---
+title: "Hands-on_Ex2a"
+date: "22 November 2023"
+date-modified: "last-modified"
+format: html
+execute: 
+  echo: true
+  #echo will run all code chunk
+  eval: true
+  #
+  warning: false
+  #warning messages not displayed
+editor: visual
+#by default, nowadays no need, but the prof use it as standard practice
+#note --- below this is the end of the yaml
+---
+
+## Getting Started
+
+```{r}
+pacman::p_load(sf, spdep, tmap, tidyverse, knitr)
+```
+
