@@ -15,6 +15,139 @@ editor: visual
 #note --- below this is the end of the yaml
 ---
 
+## Notes for class before 
+
+In geospatial, it is normally about space randomness than normally distributed as per statistics
+
+Economically Active Group - 16-64
+Economically Inactive Group - 0-15 + >=65
+
+Dependency Ratio = Economically Inactive / Economically Active
+
+Spatial Weights 
+- Adjacency
+- Distance Based
+
+Real world phenomena might not have shared boundary. e.g. island has no immediate neighbour, but this island might be part of a certain region
+
+In addition, we can also use inverse distance as weight
+
+we can create modifying area to make it regular (e.g hexagon). The shape is not exactly fixed, but hexagon is one of the most compact geometrical shape
+
+Only in more modern urban design, the layout is more grid like e.g. in punggol in Singapore, or like Seattle in US
+
+Lag1 = immediate neighbour
+Lag2 = immediate + next level neighbour
+
+when we want to check when the cluster subside, we will try to see where the influence wane, so we will go lag1, lag2, lag3 so and so forth
+
+On row standardisation. it is more like an average, instead of sum, if we use Binary W, those with more neighbours has more 1, leading to a higher number. Whereas if we use Row Standardised, it will be 1/x each for x neighbour. Sum = 1 
+
+1 example given by Prof is his analysis with Pizza Hut, on time distance away from franchise store. We don't want to be overcrowded, but also not too far. Identify each of the neighbour, and see which give them the highest market share reach.
+
+County is the smallest administrative distict, although there will still be villages within the county
+
+There are 2 portion to look at 
+- Spatial dependency (2 variable)
+    - we use it for oil reservoir discovery, borehole sampling, interpolate to create a modelling of where is likely the oil reservoir, and avoiding bedrock. if the borehole drill hit the bedrock, it will crack and be lost underground and cannot be retrived.
+    
+- Spatial Autocorrelation (1 variable) : we observe the value with its neighbour. It is very similar to correlation (xi - xbar) x (yi - ybar). but it is (xi - xbar) x (xj -xbar)
+
+positive spatial autocorrelation : you see lumps, clustering
+negative spatial autocorrelation : you see checkedbox 
+
+LISA
+high high cluster - high value surrounded by high value
+low low cluster - low value surrounded by low value
+outlier
+
+it might not be statistically significant because of 2 reason
+1) not enough neighbour (we will want to increase the number of neighbour, to make sure we are not bias)
+2) the neighbour properties (cannot solve furhter)
+
+
+### Getis method
+- weight matrix must be distance based, unliked Morant & Geary which can use adjacency. We want to be more precise, this is using more precise and refined data in the 1990s where there are GPS data, instead of Morant & Geary in the 1960s where it is more coarse. Getis is also looking at healthcare, which is more distance based
+
+G vs G(star)
+wii(d) = 0 vs wii(d) =/= 0 
+don't include itself vs include itself
+
+### Time Series
+Mann-Kendall, student asked if this mean it cannot have gap. Prof replied yes, cannot have gap. need to fill in with value.
+
+Use G(star)i for 
+
+## Start of In-class Exercise 2
+
+### Getting Started
+
+This load the R packages
+
+sf is a powerful package, that allow us to process a big chunk of data with a routine. it help to handle geospatial data, in a spatial tibble format
+
+sfdep is replacing spdef
+
+tmap is a mapping package, very powerful to create thematic map
+
+tidyverse is a family of R packages, it is a concept framework to help developer to design R packages that conform to the same design standard. It allow asynchronised update, we can update 1 module by 1 module. Tidyverse has 
+
+tibble - the dataframe
+forcats - for vector
+stringr - for string
+lubridate - for date fields
+dplyr - 
+tdyr
+purrr - organise model
+
+
+python uses panda to do data wrangle. Panda team has to upgrade everything and release it.
+
+knitr - will generate the HTML table for us, static HTML table, not iteractable
+
+
 ```{r}
-pacman::p_load(tmap, sf, tidyverse)
+pacman::p_load(tmap, sf, tidyverse, sfdep, knitr)
 ```
+
+pacman package is installed but not loaded, that's why we use pacman::, if we don't include pacman:: it will return a error that the function "p_load" cannot be found
+
+this also allow us to have a more tidy way of loading in the required packages wihtout going into the need of typing libaray(tmap), library(sf), so & so forth
+
+### The Data
+
+For the purpose of this in-class ex, the Hunan dataset will be used. There are 2 dataset in this use case
+
+
+
+#### Import basemap
+
+Hunan
+
+```{r}
+hunan <- st_read(dsn = "data/geospatial", 
+                 layer = "Hunan")
+```
+
+#### Import metadata
+
+```{r}
+hunan2012 <- read_csv("data/aspatial/Hunan_2012.csv")
+```
+
+#### Joining the data together
+
+```{r}
+hunan_allmerged <- left_join(hunan,hunan2012)
+
+```
+
+```{r}
+hunan <- hunan_allmerged %>% select(1:4,7,15)
+```
+
+this is the previous code given by prof, but i wanted to split it up to see what the dataset is
+
+hunan \<- left_join(hunan,hunan2012)%\>% select(1:4, 7, 15)
+
+

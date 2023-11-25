@@ -8,7 +8,7 @@
 
 <meta name="dcterms.date" content="2023-11-25">
 
-<title>ISSS624 - In-class_Ex2</title>
+<title>ISSS624 - Take-home_Ex1</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -20,40 +20,6 @@ ul.task-list li input[type="checkbox"] {
   width: 0.8em;
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
-}
-/* CSS for syntax highlighting */
-pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-pre > code.sourceCode > span:empty { height: 1.2em; }
-.sourceCode { overflow: visible; }
-code.sourceCode > span { color: inherit; text-decoration: inherit; }
-div.sourceCode { margin: 1em 0; }
-pre.sourceCode { margin: 0; }
-@media screen {
-div.sourceCode { overflow: auto; }
-}
-@media print {
-pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-}
-pre.numberSource code
-  { counter-reset: source-line 0; }
-pre.numberSource code > span
-  { position: relative; left: -4em; counter-increment: source-line; }
-pre.numberSource code > span > a:first-child::before
-  { content: counter(source-line);
-    position: relative; left: -1em; text-align: right; vertical-align: baseline;
-    border: none; display: inline-block;
-    -webkit-touch-callout: none; -webkit-user-select: none;
-    -khtml-user-select: none; -moz-user-select: none;
-    -ms-user-select: none; user-select: none;
-    padding: 0 4px; width: 4em;
-  }
-pre.numberSource { margin-left: 3em;  padding-left: 4px; }
-div.sourceCode
-  {   }
-@media screen {
-pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
 }
 </style>
 
@@ -197,29 +163,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- sidebar -->
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active">
-    <h2 id="toc-title">On this page</h2>
-   
-  <ul>
-  <li><a href="#notes-for-class-before" id="toc-notes-for-class-before" class="nav-link active" data-scroll-target="#notes-for-class-before">Notes for class before</a>
-  <ul class="collapse">
-  <li><a href="#getis-method" id="toc-getis-method" class="nav-link" data-scroll-target="#getis-method">Getis method</a></li>
-  <li><a href="#time-series" id="toc-time-series" class="nav-link" data-scroll-target="#time-series">Time Series</a></li>
-  </ul></li>
-  <li><a href="#start-of-in-class-exercise-2" id="toc-start-of-in-class-exercise-2" class="nav-link" data-scroll-target="#start-of-in-class-exercise-2">Start of In-class Exercise 2</a>
-  <ul class="collapse">
-  <li><a href="#getting-started" id="toc-getting-started" class="nav-link" data-scroll-target="#getting-started">Getting Started</a></li>
-  <li><a href="#the-data" id="toc-the-data" class="nav-link" data-scroll-target="#the-data">The Data</a></li>
-  </ul></li>
-  </ul>
-</nav>
+        
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">In-class_Ex2</h1>
+<h1 class="title">Take-home_Ex1</h1>
 </div>
 
 
@@ -246,101 +197,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 </header>
 
-<section id="notes-for-class-before" class="level2">
-<h2 class="anchored" data-anchor-id="notes-for-class-before">Notes for class before</h2>
-<p>In geospatial, it is normally about space randomness than normally distributed as per statistics</p>
-<p>Economically Active Group - 16-64 Economically Inactive Group - 0-15 + &gt;=65</p>
-<p>Dependency Ratio = Economically Inactive / Economically Active</p>
-<p>Spatial Weights - Adjacency - Distance Based</p>
-<p>Real world phenomena might not have shared boundary. e.g.&nbsp;island has no immediate neighbour, but this island might be part of a certain region</p>
-<p>In addition, we can also use inverse distance as weight</p>
-<p>we can create modifying area to make it regular (e.g hexagon). The shape is not exactly fixed, but hexagon is one of the most compact geometrical shape</p>
-<p>Only in more modern urban design, the layout is more grid like e.g.&nbsp;in punggol in Singapore, or like Seattle in US</p>
-<p>Lag1 = immediate neighbour Lag2 = immediate + next level neighbour</p>
-<p>when we want to check when the cluster subside, we will try to see where the influence wane, so we will go lag1, lag2, lag3 so and so forth</p>
-<p>On row standardisation. it is more like an average, instead of sum, if we use Binary W, those with more neighbours has more 1, leading to a higher number. Whereas if we use Row Standardised, it will be 1/x each for x neighbour. Sum = 1</p>
-<p>1 example given by Prof is his analysis with Pizza Hut, on time distance away from franchise store. We don’t want to be overcrowded, but also not too far. Identify each of the neighbour, and see which give them the highest market share reach.</p>
-<p>County is the smallest administrative distict, although there will still be villages within the county</p>
-<p>There are 2 portion to look at - Spatial dependency (2 variable) - we use it for oil reservoir discovery, borehole sampling, interpolate to create a modelling of where is likely the oil reservoir, and avoiding bedrock. if the borehole drill hit the bedrock, it will crack and be lost underground and cannot be retrived.</p>
-<ul>
-<li>Spatial Autocorrelation (1 variable) : we observe the value with its neighbour. It is very similar to correlation (xi - xbar) x (yi - ybar). but it is (xi - xbar) x (xj -xbar)</li>
-</ul>
-<p>positive spatial autocorrelation : you see lumps, clustering negative spatial autocorrelation : you see checkedbox</p>
-<p>LISA high high cluster - high value surrounded by high value low low cluster - low value surrounded by low value outlier</p>
-<p>it might not be statistically significant because of 2 reason 1) not enough neighbour (we will want to increase the number of neighbour, to make sure we are not bias) 2) the neighbour properties (cannot solve furhter)</p>
-<section id="getis-method" class="level3">
-<h3 class="anchored" data-anchor-id="getis-method">Getis method</h3>
-<ul>
-<li>weight matrix must be distance based, unliked Morant &amp; Geary which can use adjacency. We want to be more precise, this is using more precise and refined data in the 1990s where there are GPS data, instead of Morant &amp; Geary in the 1960s where it is more coarse. Getis is also looking at healthcare, which is more distance based</li>
-</ul>
-<p>G vs G(star) wii(d) = 0 vs wii(d) =/= 0 don’t include itself vs include itself</p>
-</section>
-<section id="time-series" class="level3">
-<h3 class="anchored" data-anchor-id="time-series">Time Series</h3>
-<p>Mann-Kendall, student asked if this mean it cannot have gap. Prof replied yes, cannot have gap. need to fill in with value.</p>
-<p>Use G(star)i for</p>
-</section>
-</section>
-<section id="start-of-in-class-exercise-2" class="level2">
-<h2 class="anchored" data-anchor-id="start-of-in-class-exercise-2">Start of In-class Exercise 2</h2>
-<section id="getting-started" class="level3">
-<h3 class="anchored" data-anchor-id="getting-started">Getting Started</h3>
-<p>This load the R packages</p>
-<p>sf is a powerful package, that allow us to process a big chunk of data with a routine. it help to handle geospatial data, in a spatial tibble format</p>
-<p>sfdep is replacing spdef</p>
-<p>tmap is a mapping package, very powerful to create thematic map</p>
-<p>tidyverse is a family of R packages, it is a concept framework to help developer to design R packages that conform to the same design standard. It allow asynchronised update, we can update 1 module by 1 module. Tidyverse has</p>
-<p>tibble - the dataframe forcats - for vector stringr - for string lubridate - for date fields dplyr - tdyr purrr - organise model</p>
-<p>python uses panda to do data wrangle. Panda team has to upgrade everything and release it.</p>
-<p>knitr - will generate the HTML table for us, static HTML table, not iteractable</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>pacman<span class="sc">::</span><span class="fu">p_load</span>(tmap, sf, tidyverse, sfdep, knitr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>pacman package is installed but not loaded, that’s why we use pacman::, if we don’t include pacman:: it will return a error that the function “p_load” cannot be found</p>
-<p>this also allow us to have a more tidy way of loading in the required packages wihtout going into the need of typing libaray(tmap), library(sf), so &amp; so forth</p>
-</section>
-<section id="the-data" class="level3">
-<h3 class="anchored" data-anchor-id="the-data">The Data</h3>
-<p>For the purpose of this in-class ex, the Hunan dataset will be used. There are 2 dataset in this use case</p>
-<section id="import-basemap" class="level4">
-<h4 class="anchored" data-anchor-id="import-basemap">Import basemap</h4>
-<p>Hunan</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>hunan <span class="ot">&lt;-</span> <span class="fu">st_read</span>(<span class="at">dsn =</span> <span class="st">"data/geospatial"</span>, </span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>                 <span class="at">layer =</span> <span class="st">"Hunan"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>Reading layer `Hunan' from data source 
-  `C:\worksheep\ISSS624\In-class_Ex\In-class_Ex2\Data\geospatial' 
-  using driver `ESRI Shapefile'
-Simple feature collection with 88 features and 7 fields
-Geometry type: POLYGON
-Dimension:     XY
-Bounding box:  xmin: 108.7831 ymin: 24.6342 xmax: 114.2544 ymax: 30.12812
-Geodetic CRS:  WGS 84</code></pre>
-</div>
-</div>
-</section>
-<section id="import-metadata" class="level4">
-<h4 class="anchored" data-anchor-id="import-metadata">Import metadata</h4>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>hunan2012 <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"data/aspatial/Hunan_2012.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</section>
-<section id="joining-the-data-together" class="level4">
-<h4 class="anchored" data-anchor-id="joining-the-data-together">Joining the data together</h4>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>hunan_allmerged <span class="ot">&lt;-</span> <span class="fu">left_join</span>(hunan,hunan2012)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>hunan <span class="ot">&lt;-</span> hunan_allmerged <span class="sc">%&gt;%</span> <span class="fu">select</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>,<span class="dv">7</span>,<span class="dv">15</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>this is the previous code given by prof, but i wanted to split it up to see what the dataset is</p>
-<p>hunan &lt;- left_join(hunan,hunan2012)%&gt;% select(1:4, 7, 15)</p>
+<p>remember to exclude area that transport do not serve, e.g.&nbsp;central reserve, make the value missing to depict correctly</p>
+<pre><code>  
+#  frame = TRUE) +
+tm_borders(alpha - 0.5) +
+tm_compass(type = "8star", size = 2)+
+tm_grid(alpha = 0.2)+
+tm_credits("Source: LTA DataMall",
+           position = c("left","bottom"))</code></pre>
 
 
-</section>
-</section>
-</section>
 
 </main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
