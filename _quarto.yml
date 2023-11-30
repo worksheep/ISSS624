@@ -1,6 +1,11 @@
 project:
   type: website
-
+  render:
+    - "*.qmd"
+    - "!Take-home_Ex1_Test.qmd"
+    - "!Take-home_Ex1_Test2.qmd"
+    - "!Take-home_Ex1_Test*.qmd"
+    
 website:
   title: "ISSS624"
   navbar:

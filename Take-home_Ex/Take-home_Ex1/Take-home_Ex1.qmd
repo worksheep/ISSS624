@@ -15,10 +15,56 @@ editor: visual
 #note --- below this is the end of the yaml
 ---
 
-remember to exclude area that transport do not serve, e.g. central reserve, make the value missing to depict correctly
+```{r}
+pacman::p_load(tmap, sf, tidyverse, sfdep, knitr, plotly)
+```
+
+## Let's take a look at the Singapore Map
+
+This is the basemap of Singapore gotten from OneMap
+
+
+```{r}
+
+mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019") %>% st_transform(crs = 3414)
+
+#WGS84 SVY21
+#CRS coordinate representation system for Singapore is 3414
+```
+
+```{r}
+plot(mpsz)
+```
+merging all into 1 singapore map. However, the subzones seem to have some small overlap. Given our usecase, actually we don't need it to be so precise, so we can do a further simplication via st_simplify (note: this come at a cost of precision)
+
+```{r}
+sgp <- st_union(mpsz$geometry)
+plot(sgp)
+```
+
+```{r}
+# Simplify the geometry
+sgp_simple <- st_simplify(sgp, dTolerance = 100)
+plot(sgp_simple)
 
 ```
-  
+
+
+## Where are our busstops
+
+The busstops 
+
+
+remember to exclude area that transport do not serve, e.g. central reserve, make the value missing to depict correctly
+
+Identify Hotspot, then no need to use contiuity matrix LISA only need local moran I, high-high, low-low, outliers
+
+Emerging Hot Spot - Gi\* values, not the 1 without the star
+
+need to create hexagon with the sf package. there are advantage, there are some busstop that are at the fringe of causeway, so it is outside. So to catch all the busstop including the edge then we need to calculate, there are missing hexagon there
+
+```         
+  legend.width = 
 #  frame = TRUE) +
 tm_borders(alpha - 0.5) +
 tm_compass(type = "8star", size = 2)+
@@ -26,4 +72,5 @@ tm_grid(alpha = 0.2)+
 tm_credits("Source: LTA DataMall",
            position = c("left","bottom"))
 ```
+
 

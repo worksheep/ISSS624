@@ -201,15 +201,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#notes-for-class-before" id="toc-notes-for-class-before" class="nav-link active" data-scroll-target="#notes-for-class-before">Notes for class before</a>
-  <ul class="collapse">
-  <li><a href="#getis-method" id="toc-getis-method" class="nav-link" data-scroll-target="#getis-method">Getis method</a></li>
-  <li><a href="#time-series" id="toc-time-series" class="nav-link" data-scroll-target="#time-series">Time Series</a></li>
-  </ul></li>
-  <li><a href="#start-of-in-class-exercise-2" id="toc-start-of-in-class-exercise-2" class="nav-link" data-scroll-target="#start-of-in-class-exercise-2">Start of In-class Exercise 2</a>
+  <li><a href="#start-of-in-class-exercise-2" id="toc-start-of-in-class-exercise-2" class="nav-link active" data-scroll-target="#start-of-in-class-exercise-2">Start of In-class Exercise 2</a>
   <ul class="collapse">
   <li><a href="#getting-started" id="toc-getting-started" class="nav-link" data-scroll-target="#getting-started">Getting Started</a></li>
   <li><a href="#the-data" id="toc-the-data" class="nav-link" data-scroll-target="#the-data">The Data</a></li>
+  </ul></li>
+  <li><a href="#visualisation" id="toc-visualisation" class="nav-link" data-scroll-target="#visualisation">Visualisation</a>
+  <ul class="collapse">
+  <li><a href="#gdp-per-capita-2012" id="toc-gdp-per-capita-2012" class="nav-link" data-scroll-target="#gdp-per-capita-2012">GDP Per Capita 2012</a></li>
+  <li><a href="#starting-the-use-of-sfdep" id="toc-starting-the-use-of-sfdep" class="nav-link" data-scroll-target="#starting-the-use-of-sfdep">Starting the use of sfdep</a></li>
+  </ul></li>
+  <li><a href="#emerging-hot-spot" id="toc-emerging-hot-spot" class="nav-link" data-scroll-target="#emerging-hot-spot">Emerging Hot Spot</a>
+  <ul class="collapse">
+  <li><a href="#creating-a-time-series-cube" id="toc-creating-a-time-series-cube" class="nav-link" data-scroll-target="#creating-a-time-series-cube">Creating a Time Series Cube</a></li>
+  </ul></li>
+  <li><a href="#notes-for-class" id="toc-notes-for-class" class="nav-link" data-scroll-target="#notes-for-class">Notes for class</a>
+  <ul class="collapse">
+  <li><a href="#getis-method" id="toc-getis-method" class="nav-link" data-scroll-target="#getis-method">Getis method</a></li>
+  <li><a href="#time-series" id="toc-time-series" class="nav-link" data-scroll-target="#time-series">Time Series</a></li>
+  <li><a href="#separate-notes" id="toc-separate-notes" class="nav-link" data-scroll-target="#separate-notes">Separate notes</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -246,8 +256,232 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 </header>
 
-<section id="notes-for-class-before" class="level2">
-<h2 class="anchored" data-anchor-id="notes-for-class-before">Notes for class before</h2>
+<section id="start-of-in-class-exercise-2" class="level2">
+<h2 class="anchored" data-anchor-id="start-of-in-class-exercise-2">Start of In-class Exercise 2</h2>
+<section id="getting-started" class="level3">
+<h3 class="anchored" data-anchor-id="getting-started">Getting Started</h3>
+<p>This load the R packages</p>
+<p>sf is a powerful package, that allow us to process a big chunk of data with a routine. it help to handle geospatial data, in a spatial tibble format</p>
+<p>sfdep is replacing spdef</p>
+<p>tmap is a mapping package, very powerful to create thematic map</p>
+<p>tidyverse is a family of R packages, it is a concept framework to help developer to design R packages that conform to the same design standard. It allow asynchronised update, we can update 1 module by 1 module. Tidyverse has</p>
+<p>tibble - the dataframe forcats - for vector stringr - for string lubridate - for date fields dplyr - tdyr purrr - organise model</p>
+<p>python uses panda to do data wrangle. Panda team has to upgrade everything and release it.</p>
+<p>knitr - will generate the HTML table for us, static HTML table, not iteractable</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>pacman<span class="sc">::</span><span class="fu">p_load</span>(tmap, sf, tidyverse, sfdep, knitr, plotly)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>pacman package is installed but not loaded, that’s why we use pacman::, if we don’t include pacman:: it will return a error that the function “p_load” cannot be found</p>
+<p>this also allow us to have a more tidy way of loading in the required packages wihtout going into the need of typing libaray(tmap), library(sf), so &amp; so forth</p>
+</section>
+<section id="the-data" class="level3">
+<h3 class="anchored" data-anchor-id="the-data">The Data</h3>
+<p>For the purpose of this in-class ex, the Hunan dataset will be used. There are 2 dataset in this use case</p>
+<ul>
+<li>basemap : hunan</li>
+<li>metadata : hunan2012</li>
+</ul>
+<section id="import-basemap" class="level4">
+<h4 class="anchored" data-anchor-id="import-basemap">Import basemap</h4>
+<p>Hunan</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>hunan <span class="ot">&lt;-</span> <span class="fu">st_read</span>(<span class="at">dsn =</span> <span class="st">"data/geospatial"</span>, </span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>                 <span class="at">layer =</span> <span class="st">"Hunan"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Reading layer `Hunan' from data source 
+  `C:\worksheep\ISSS624\In-class_Ex\In-class_Ex2\Data\geospatial' 
+  using driver `ESRI Shapefile'
+Simple feature collection with 88 features and 7 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 108.7831 ymin: 24.6342 xmax: 114.2544 ymax: 30.12812
+Geodetic CRS:  WGS 84</code></pre>
+</div>
+</div>
+<p>using st_read allow us to read it in simple features or layer from database this is a function under the package sf</p>
+<p>it is in tibble format, it will not overcluster. It allow a list within the dataframe, e.g.&nbsp;the geometry of polygon is actually a list (also called simple feature geometry(sfg))</p>
+<p>each row is a “observation” in R format. The feature here is referring to the geographical type (entity), point, line or polygon.</p>
+<p>the specification are written by Open Geospatial Consortium (OGC), Europe has a “law” that software must have inter-operable. Othewise, the software cannot sell in EU</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(hunan)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Simple feature collection with 6 features and 7 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 110.4922 ymin: 28.61762 xmax: 112.3013 ymax: 30.12812
+Geodetic CRS:  WGS 84
+   NAME_2  ID_3  NAME_3   ENGTYPE_3 Shape_Leng Shape_Area  County
+1 Changde 21098 Anxiang      County   1.869074 0.10056190 Anxiang
+2 Changde 21100 Hanshou      County   2.360691 0.19978745 Hanshou
+3 Changde 21101  Jinshi County City   1.425620 0.05302413  Jinshi
+4 Changde 21102      Li      County   3.474325 0.18908121      Li
+5 Changde 21103   Linli      County   2.289506 0.11450357   Linli
+6 Changde 21104  Shimen      County   4.171918 0.37194707  Shimen
+                        geometry
+1 POLYGON ((112.0625 29.75523...
+2 POLYGON ((112.2288 29.11684...
+3 POLYGON ((111.8927 29.6013,...
+4 POLYGON ((111.3731 29.94649...
+5 POLYGON ((111.6324 29.76288...
+6 POLYGON ((110.8825 30.11675...</code></pre>
+</div>
+</div>
+</section>
+<section id="import-metadata" class="level4">
+<h4 class="anchored" data-anchor-id="import-metadata">Import metadata</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>hunan2012 <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"data/aspatial/Hunan_2012.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>this is a typical tibble dataframe, with 88 observations (row), 29 variable (column)</p>
+</section>
+<section id="import-timeseries-gdp-per-capita" class="level4">
+<h4 class="anchored" data-anchor-id="import-timeseries-gdp-per-capita">Import TimeSeries GDP Per Capita</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>GDPPC <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"data/aspatial/Hunan_GDPPC.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="joining-the-data-together" class="level4">
+<h4 class="anchored" data-anchor-id="joining-the-data-together">Joining the data together</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>hunan_allmerged <span class="ot">&lt;-</span> <span class="fu">left_join</span>(hunan,hunan2012)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>we need to know which 1 we want to retain, e.g.&nbsp;we want to retain the spatial property, we use left_join with the dataframe with spatial attributes infront.</p>
+<p>left_join is dplyr function. In R, we always use packages. This is quite smart that despite they have different column name (NAME_3 in Hunan vs County in Hunan2012), they can still do a left join w/o us specifying which column to join by specifically</p>
+<p>In addition, this left_join using dplyr function automatically kept the geometry attribute. if we use the leftjoin from basic R, it doesn’t retain it</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>hunan <span class="ot">&lt;-</span> hunan_allmerged <span class="sc">%&gt;%</span> <span class="fu">select</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>,<span class="dv">7</span>,<span class="dv">15</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>this is the previous code given by prof, but i wanted to split it up to see what the dataset is</p>
+<p>hunan &lt;- left_join(hunan,hunan2012)%&gt;% select(1:4, 7, 15)</p>
+</section>
+</section>
+</section>
+<section id="visualisation" class="level2">
+<h2 class="anchored" data-anchor-id="visualisation">Visualisation</h2>
+<section id="gdp-per-capita-2012" class="level3">
+<h3 class="anchored" data-anchor-id="gdp-per-capita-2012">GDP Per Capita 2012</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>basemap <span class="ot">&lt;-</span> <span class="fu">tm_shape</span>(hunan) <span class="sc">+</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tm_polygons</span>() <span class="sc">+</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tm_text</span>(<span class="st">"NAME_3"</span>, <span class="at">size=</span><span class="fl">0.5</span>)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>gdppc <span class="ot">&lt;-</span> <span class="fu">qtm</span>(hunan, <span class="st">"GDPPC"</span>)</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="fu">tmap_arrange</span>(basemap, gdppc, <span class="at">asp=</span><span class="dv">1</span>, <span class="at">ncol=</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="In-class_Ex2_files/figure-html/unnamed-chunk-8-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="starting-the-use-of-sfdep" class="level3">
+<h3 class="anchored" data-anchor-id="starting-the-use-of-sfdep">Starting the use of sfdep</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>wm_q <span class="ot">&lt;-</span> hunan <span class="sc">%&gt;%</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">nb =</span> <span class="fu">st_contiguity</span>(geometry),</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>         <span class="at">wt =</span> <span class="fu">st_weights</span>(nb, </span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>                         <span class="at">style =</span> <span class="st">"W"</span>),</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>         <span class="at">.before =</span> <span class="dv">1</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>         )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>it is a tibble dataframe, so we can use mutate, which is a dpylr function that allow us to insert back into the dataframe</p>
+<p>st_contiguity by default use queen pattern weight style W is using row standarised weight</p>
+<p>so we store all the neighbour and weight into the tibble dataframe directly (as compared to spdep we need to store differently into a separate list before combining together)</p>
+<p>sfdep is technically a wrapper of spdep, but allow output back into tibble format, which make our live much easier</p>
+<section id="computing-local-moran-i" class="level4">
+<h4 class="anchored" data-anchor-id="computing-local-moran-i">Computing Local Moran I</h4>
+<p>nsim is the number of simulation, to create different random observation local_moran() calculate multiple values, so we need to unnest local_moran variable into individual column</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>lisa <span class="ot">&lt;-</span> wm_q <span class="sc">%&gt;%</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">local_moran =</span> <span class="fu">local_moran</span>(</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    GDPPC, nb, wt, <span class="at">nsim =</span> <span class="dv">99</span>),</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">.before =</span> <span class="dv">1</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(local_moran)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>this follow the tibble way, is tidier than the previous method in addition, it also help to calculate all the high-high, low-low and output it as well, we no need to separately generate. no need to join table.</p>
+<p>sometimes when we google, the results are using older packages, yes it can solve the problem, but it may complicate your process further as it is using the older package and may not be compatible with other steps down the road.</p>
+<p>if the result is highly skewed (e.g.&nbsp;GDP), we may not want to use mean, but use median. pysal is using a python package</p>
+</section>
+</section>
+</section>
+<section id="emerging-hot-spot" class="level2">
+<h2 class="anchored" data-anchor-id="emerging-hot-spot">Emerging Hot Spot</h2>
+<section id="creating-a-time-series-cube" class="level3">
+<h3 class="anchored" data-anchor-id="creating-a-time-series-cube">Creating a Time Series Cube</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>GDPPC_st <span class="ot">&lt;-</span> <span class="fu">spacetime</span>(GDPPC, hunan,</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>                      <span class="at">.loc_col =</span> <span class="st">"County"</span>,</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>                      <span class="at">.time_col =</span> <span class="st">"Year"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">is_spacetime_cube</span>(GDPPC_st)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] TRUE</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">is_spacetime_cube</span>(GDPPC)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] FALSE</code></pre>
+</div>
+</div>
+<p>Although the 2 dataset look similar at initially, but actually when we look into the table information, there are space time information under the meta datain GDPPC_st</p>
+<section id="computing-gi-part-1" class="level4">
+<h4 class="anchored" data-anchor-id="computing-gi-part-1">Computing GI* part 1</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>GDPPC_nb <span class="ot">&lt;-</span> GDPPC_st <span class="sc">%&gt;%</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">activate</span>(<span class="st">"geometry"</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">nb =</span> <span class="fu">include_self</span>(<span class="fu">st_contiguity</span>(geometry)),</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>         <span class="at">wt =</span> <span class="fu">st_inverse_distance</span>(nb, geometry,</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>                                  <span class="at">scale =</span> <span class="dv">1</span>,</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>                                  <span class="at">alpha =</span> <span class="dv">1</span>),</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>         <span class="at">.before =</span> <span class="dv">1</span> )<span class="sc">%&gt;%</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">set_nbs</span>(<span class="st">"nb"</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">set_wts</span>(<span class="st">"wt"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>need to have activate before we calculate all these. although this is not too efficient given that the neighbour don’t change across the year in this setting. However, if we don’t have this, they will have to give us a big table</p>
+</section>
+<section id="computing-gi-part-2" class="level4">
+<h4 class="anchored" data-anchor-id="computing-gi-part-2">Computing Gi* part 2</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>gi_stars <span class="ot">&lt;-</span> GDPPC_nb <span class="sc">%&gt;%</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(Year) <span class="sc">%&gt;%</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">gi_star =</span> <span class="fu">local_gstar_perm</span>(</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    GDPPC, nb, wt)) <span class="sc">%&gt;%</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>  tidyr<span class="sc">::</span><span class="fu">unnest</span>(gi_star)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="output" class="level4">
+<h4 class="anchored" data-anchor-id="output">Output</h4>
+<pre><code>cbg &lt;- gi_stars %&gt;%</code></pre>
+<pre><code>p &lt;- ggplot(data = cbg,
+       aes(x = Year,
+           y = gi_star))
+
+
+ggplotly(p)</code></pre>
+<p>k is the time lag, 2014 compare wiht 2013, so and so forth. spatial is already taken care of by the database, space time cube GDPPC_st</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>ehsa <span class="ot">&lt;-</span> <span class="fu">emerging_hotspot_analysis</span>(</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">x =</span> GDPPC_st,</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">.var =</span> <span class="st">"GDPPC"</span>,</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">k =</span> <span class="dv">1</span>,</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">nsim =</span> <span class="dv">99</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>there is a difference between “no pattern” (yellow) and “missing value” (grey). all those with</p>
+<pre><code>ehsa_sig &lt;- hunan_ehsa %&gt;%
+  filter(p_value &lt;0.05)
+tmap_mode("plot")
+tm_shape(hunan_ehsa)+
+  tm_polygons()+
+  tm_borders(alpha = 0.5) +
+tm_shape(ehsa_sig) +
+  tm_fill("classification")+
+  tm_borders(alpha = 0.4)</code></pre>
+</section>
+</section>
+</section>
+<section id="notes-for-class" class="level2">
+<h2 class="anchored" data-anchor-id="notes-for-class">Notes for class</h2>
 <p>In geospatial, it is normally about space randomness than normally distributed as per statistics</p>
 <p>Economically Active Group - 16-64 Economically Inactive Group - 0-15 + &gt;=65</p>
 <p>Dependency Ratio = Economically Inactive / Economically Active</p>
@@ -280,65 +514,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Mann-Kendall, student asked if this mean it cannot have gap. Prof replied yes, cannot have gap. need to fill in with value.</p>
 <p>Use G(star)i for</p>
 </section>
-</section>
-<section id="start-of-in-class-exercise-2" class="level2">
-<h2 class="anchored" data-anchor-id="start-of-in-class-exercise-2">Start of In-class Exercise 2</h2>
-<section id="getting-started" class="level3">
-<h3 class="anchored" data-anchor-id="getting-started">Getting Started</h3>
-<p>This load the R packages</p>
-<p>sf is a powerful package, that allow us to process a big chunk of data with a routine. it help to handle geospatial data, in a spatial tibble format</p>
-<p>sfdep is replacing spdef</p>
-<p>tmap is a mapping package, very powerful to create thematic map</p>
-<p>tidyverse is a family of R packages, it is a concept framework to help developer to design R packages that conform to the same design standard. It allow asynchronised update, we can update 1 module by 1 module. Tidyverse has</p>
-<p>tibble - the dataframe forcats - for vector stringr - for string lubridate - for date fields dplyr - tdyr purrr - organise model</p>
-<p>python uses panda to do data wrangle. Panda team has to upgrade everything and release it.</p>
-<p>knitr - will generate the HTML table for us, static HTML table, not iteractable</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>pacman<span class="sc">::</span><span class="fu">p_load</span>(tmap, sf, tidyverse, sfdep, knitr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>pacman package is installed but not loaded, that’s why we use pacman::, if we don’t include pacman:: it will return a error that the function “p_load” cannot be found</p>
-<p>this also allow us to have a more tidy way of loading in the required packages wihtout going into the need of typing libaray(tmap), library(sf), so &amp; so forth</p>
-</section>
-<section id="the-data" class="level3">
-<h3 class="anchored" data-anchor-id="the-data">The Data</h3>
-<p>For the purpose of this in-class ex, the Hunan dataset will be used. There are 2 dataset in this use case</p>
-<section id="import-basemap" class="level4">
-<h4 class="anchored" data-anchor-id="import-basemap">Import basemap</h4>
-<p>Hunan</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>hunan <span class="ot">&lt;-</span> <span class="fu">st_read</span>(<span class="at">dsn =</span> <span class="st">"data/geospatial"</span>, </span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>                 <span class="at">layer =</span> <span class="st">"Hunan"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>Reading layer `Hunan' from data source 
-  `C:\worksheep\ISSS624\In-class_Ex\In-class_Ex2\Data\geospatial' 
-  using driver `ESRI Shapefile'
-Simple feature collection with 88 features and 7 fields
-Geometry type: POLYGON
-Dimension:     XY
-Bounding box:  xmin: 108.7831 ymin: 24.6342 xmax: 114.2544 ymax: 30.12812
-Geodetic CRS:  WGS 84</code></pre>
-</div>
-</div>
-</section>
-<section id="import-metadata" class="level4">
-<h4 class="anchored" data-anchor-id="import-metadata">Import metadata</h4>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>hunan2012 <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"data/aspatial/Hunan_2012.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</section>
-<section id="joining-the-data-together" class="level4">
-<h4 class="anchored" data-anchor-id="joining-the-data-together">Joining the data together</h4>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>hunan_allmerged <span class="ot">&lt;-</span> <span class="fu">left_join</span>(hunan,hunan2012)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>hunan <span class="ot">&lt;-</span> hunan_allmerged <span class="sc">%&gt;%</span> <span class="fu">select</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>,<span class="dv">7</span>,<span class="dv">15</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>this is the previous code given by prof, but i wanted to split it up to see what the dataset is</p>
-<p>hunan &lt;- left_join(hunan,hunan2012)%&gt;% select(1:4, 7, 15)</p>
+<section id="separate-notes" class="level3">
+<h3 class="anchored" data-anchor-id="separate-notes">Separate notes</h3>
+<p>quarto documents are authored using markdown, an easy to write plain tet format quarto documents are generated using pandoc, a universal document converter</p>
+<p>when we run R, it is in memory and it may not need to run in sequence, so it could be possible that the output works, because we were doing trial and error and skip different steps.</p>
+<p>Whereas when we render, it must go in sequence, so it may not work as per the skip step</p>
 
 
-</section>
 </section>
 </section>
 
