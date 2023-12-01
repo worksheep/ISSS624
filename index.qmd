@@ -2,10 +2,4 @@
 title: "ISSS624"
 ---
 
-This is a Quarto website.
-
-To learn more about Quarto websites visit this is an edit <https://quarto.org/docs/websites>.
-
-```{r}
-1 + 1
-```
+This is a website about ISSS624, taught by a interesting professor who is very nice to us
