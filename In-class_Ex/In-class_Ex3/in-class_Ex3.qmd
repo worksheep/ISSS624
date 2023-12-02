@@ -479,6 +479,8 @@ Next, we will compute the R-squared of the unconstrained SIM by using the code c
 CalcRSquared(uncSIM$data$TRIPS, uncSIM$fitted.values)
 ```
 
+the R^2 is relatively small, which show that it is not as good.
+
 ```{r}
 r2_mcfadden(uncSIM)
 ```
