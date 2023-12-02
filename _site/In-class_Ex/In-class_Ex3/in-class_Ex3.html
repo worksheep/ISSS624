@@ -731,6 +731,7 @@ Q&amp;A
 </div>
 <p>The print report above reveals that variables ORIGIN_AGE7_12, ORIGIN_AGE13_24, ORIGIN_AGE25_64,DESTIN_AGE7_12, DESTIN_AGE13_24, DESTIN_AGE25_64 consist of 0 values.</p>
 <p>In view of this, code chunk below will be used to replace zero values to 0.99.</p>
+<p>we don’t do this upfront because the data should be clean earlier. For this modelling, that we want to make it fit into a model that this is feature engineering.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>SIM_data<span class="sc">$</span>DESTIN_AGE7_12 <span class="ot">&lt;-</span> <span class="fu">ifelse</span>(</span>
 <span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>  SIM_data<span class="sc">$</span>DESTIN_AGE7_12 <span class="sc">==</span> <span class="dv">0</span>,</span>
@@ -786,6 +787,8 @@ Q&amp;A
 <p>The general formula of Unconstrained Spatial Interaction Model</p>
 <p><img src="chap15/img/image1.jpg" class="img-fluid" width="480"></p>
 <p>The code chunk used to calibrate to model is shown below:</p>
+<p>glm has many regression that can be used, not just least square. so we need to specify the family and link</p>
+<p>the distance base on the formula is inverse. closer is what you preferred. the parameter should be negative, but the variable itself, we just add as positive.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>uncSIM <span class="ot">&lt;-</span> <span class="fu">glm</span>(<span class="at">formula =</span> TRIPS <span class="sc">~</span> </span>
 <span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>                <span class="fu">log</span>(ORIGIN_AGE25_64) <span class="sc">+</span> </span>

@@ -404,6 +404,8 @@ The print report above reveals that variables ORIGIN_AGE7_12, ORIGIN_AGE13_24, O
 
 In view of this, code chunk below will be used to replace zero values to 0.99.
 
+we don't do this upfront because the data should be clean earlier. For this modelling, that we want to make it fit into a model that this is feature engineering.
+
 ```{r}
 SIM_data$DESTIN_AGE7_12 <- ifelse(
   SIM_data$DESTIN_AGE7_12 == 0,
@@ -443,6 +445,10 @@ The general formula of Unconstrained Spatial Interaction Model
 ![](chap15/img/image1.jpg){width="480"}
 
 The code chunk used to calibrate to model is shown below:
+
+glm has many regression that can be used, not just least square. so we need to specify the family and link
+
+the distance base on the formula is inverse. closer is what you preferred. the parameter should be negative, but the variable itself, we just add as positive.
 
 ```{r}
 uncSIM <- glm(formula = TRIPS ~ 
