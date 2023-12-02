@@ -16,7 +16,7 @@ Spatial interaction represent the flow of people, material, or information betwe
 
 Each spatial interaction, as an analogy for a set of movements, is composed of a discrete origin/destination pair. Each pair can be represented as a cell in a matrix where rows are related to the locations (centroids) of origin, while columns are related to locations (centroids) of destination. Such a matrix is commonly known as an origin/destination matrix, or a spatial interaction matrix.
 
-We will build an OD matrix by using *Passenger Volume by Origin Destination Bus Stops* data set downloaded from LTA DataMall. 
+We will build an OD matrix by using *Passenger Volume by Origin Destination Bus Stops* data set downloaded from LTA DataMall.
 
 ## Getting Started
 
