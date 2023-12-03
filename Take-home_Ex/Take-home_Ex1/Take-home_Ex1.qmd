@@ -1,8 +1,11 @@
 ---
-title: "Take-home_Ex1"
+title: "Take-home_Ex1_Test3"
 date: "25 November 2023"
 date-modified: "last-modified"
-format: html
+format:
+  html: 
+    code-fold: true
+    code-summary: "Show the code"
 execute: 
   echo: true
   #echo will run all code chunk
@@ -15,62 +18,910 @@ editor: visual
 #note --- below this is the end of the yaml
 ---
 
+## **Objective**
+
+Everyday, many of us take buses to various destination. Some of us take a shuttle bus to MRT station to transit, some change bus reach their destination, and some have direct bus to their destination.
+
+Let us analyse how Singaporeans tend to transit using bus using LTA data ***"Passenger Volume by Origin Destination Bus Stops"*** downloaded from [LTA DataMall](https://datamall.lta.gov.sg/content/datamall/en.html)
+
+## **Setting Up the Environment**
+
+To aid us in the analysis, we are using R and the associated packages. We set the stage by loading them into the environment as below
+
 ```{r}
-pacman::p_load(tmap, sf, tidyverse, sfdep, knitr, plotly)
+pacman::p_load(tmap, sf, tidyverse, sfdep, knitr, plotly, DT, lubridate, magick)
 ```
 
-## Let's take a look at the Singapore Map
+```{r}
+#these procedures will be reused, so easier to keep them as a function
+
+#check if all unique
+isUnique <- function(v){
+  return(!any(duplicated(v)))
+}
+
+
+#extract the number of rows that are not unique
+extractduplicatecount <- function(v){
+  return(v %>%
+    group_by_all() %>%
+    filter(n()>1) %>%
+    ungroup() %>%
+    nrow())
+}
+
+```
+
+### \*\* Setting the Static Basemap \*\*
 
 This is the basemap of Singapore gotten from OneMap
-
 
 ```{r}
 
 mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019") %>% st_transform(crs = 3414)
-
-#WGS84 SVY21
-#CRS coordinate representation system for Singapore is 3414
 ```
 
-```{r}
-plot(mpsz)
-```
-merging all into 1 singapore map. However, the subzones seem to have some small overlap. Given our usecase, actually we don't need it to be so precise, so we can do a further simplication via st_simplify (note: this come at a cost of precision)
+This basemap comprise of small subzones. However, we wil want to merge all into 1 singapore map. Upon the first merger the subzones seem to have some small overlap. Given our usecase, actually we don't need it to be so precise, so we can do a further simplication via st_simplify (note: this come at a cost of precision)
 
 ```{r}
+#Merge
 sgp <- st_union(mpsz$geometry)
-plot(sgp)
+
+# Simplify the geometry
+sgp_simple <- st_simplify(sgp, dTolerance = 100) %>% 
+  st_as_sf() %>%
+  st_transform(crs = 3414) %>%
+  st_make_valid()
+  
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)
+```
+
+## **First Look at our BUS Data**
+
+We need to load in the dataset downloaded.
+
+```{r}
+odbus202308 <- read_csv("data/aspatial/origin_destination_bus_202308.csv")
+glimpse(odbus202308)
+```
+
+We see that apart from the total trips & time, the rest of the variables are as character field.
+
+```{r}
+#datatable(sample_n(odbus202308,25), filter = 'top', options = list(paging = FALSE))
+datatable(sample_n(odbus202308,25))
+```
+
+However, we expect that month of travel, day_type, public transport type, origin & destination code are supposed to be standardised. Lets catergorising these variables to check the unique combinations.
+
+```{r}
+# Change all columns to factors
+odbus202308 <- data.frame(lapply(odbus202308, factor))
+odbus202308$TOTAL_TRIPS <- as.numeric(odbus202308$TOTAL_TRIPS)
+odbus202308$TIME_PER_HOUR <- as.numeric(odbus202308$TIME_PER_HOUR)
+```
+
+After catergorising the variables, we see that as per dataset naming, there was only bus transport data in 2023 Aug. The days are grouped together into 2 category of ***WEEKDAY*** or ***WEEKENDS/HOLIDAY***.
+
+The timing is consolidated into 0-24, though interestingly Weekday 3am is not present, probably because there were no bus services operating on weekday at 3am.
+
+```{r}
+# Find the distinct values in each column
+distinct_values <- odbus202308 %>%
+  select(-TOTAL_TRIPS, -ORIGIN_PT_CODE, -DESTINATION_PT_CODE) %>%
+  distinct() %>%
+  arrange(PT_TYPE, YEAR_MONTH, DAY_TYPE, TIME_PER_HOUR)
+
+#datatable(distinct_values, filter = 'top', options = list(paging = FALSE))
+datatable(distinct_values)
+```
+
+Lets also check if the trips data is unique.
+
+```{r}
+odbus202308_isunique <- isUnique(odbus202308)
+odbus202308_extractduplicatecount <- extractduplicatecount(odbus202308)
+```
+
+Check if trips data is unique returned `r odbus202308_isunique`. There are `r odbus202308_extractduplicatecount` lines that are duplicated
+
+### **When do we take BUS?**
+
+First we want to summarise the data to group by ***WEEKDAY*** or ***WEEKENDS/HOLIDAY*** and sum up all the trips made at each ***TIME_PER_HOUR***
+
+```{r}
+#summarising the data
+alltriptime <- odbus202308 %>%
+  group_by(DAY_TYPE, TIME_PER_HOUR) %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS))
+
+daytype_trip <- alltriptime %>%
+  group_by(DAY_TYPE) %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS))
 ```
 
 ```{r}
-# Simplify the geometry
-sgp_simple <- st_simplify(sgp, dTolerance = 100)
-plot(sgp_simple)
+weekd_ratio <- sprintf("%.f%%", daytype_trip %>% filter(DAY_TYPE=="WEEKENDS/HOLIDAY") %>% pull(TOTAL_TRIPS) / daytype_trip %>% filter(DAY_TYPE=="WEEKDAY") %>% pull(TOTAL_TRIPS)*100)
 
 ```
 
+The temporal distribution of the trips is not surprising as we tend to have morning and evening peaks during ***WEEKDAY*** where people go to and back from work/school.
 
-## Where are our busstops
+Whereas on ***WEEKENDS/HOLIDAY***, timing is more flexible and more spread out. The total quantum of bus trips made on ***WEEKENDS/HOLIDAY*** is only `r weekd_ratio`% of that in ***WEEKDAY***. As a result, the bus operators probably cater lesser buses too (as we would have experienced the lower frequency).
 
-The busstops 
+```{r}
+# Create the plot
+plot_ly(alltriptime, x = ~TIME_PER_HOUR, y = ~TOTAL_TRIPS, color = ~DAY_TYPE, type = 'scatter', mode = 'lines') %>%
+  layout(title = "Distribution of Trips Across Time", xaxis = list(title = "Time"), yaxis = list(title = "Number of Trips"))
+```
 
+Thus we will want to pay more focus on the following time period for further analysis. Although it can be argued that the ***WEEKDAY*** afternoon peak is from 4pm to 8pm instead of 5pm to 8pm, but we will like to standardise the analysis period to a 3 hour window for each peak hour first
+
+| Peak Hour Period              | Bus Tap on Time |
+|-------------------------------|-----------------|
+| Weekday morning peak          | 6am to 9pm      |
+| Weekday afternoon peak        | 5pm to 8pm      |
+| Weekends/Holiday morning peak | 11am to 2pm     |
+| Weekends/Holiday evening peak | 4pm to 7pm      |
+
+## **Where do we take the Bus?**
+
+### **Loading in Busstop Data**
+
+From the bus trip data, we have trips from ***ORIGIN_PT_CODE*** to ***DESTINATION_PT_CODE***. however, that is a unique ID tagged to each busstop, but without the busstop metadata, we don't know where are these busstops. So we need to add in an additional data to plot the geographical location of each busstop.
+
+```{r}
+busstop <- st_read(dsn = "data/geospatial",
+                   layer = "BusStop") %>%
+  st_transform(crs = 3414)
+
+
+```
+
+We see that busstop data is a point data with only 1 pair of XY coordinate per feature. ***BUS_STOP_N*** in the busstop data is a unique ID matching to that of ***ORIGIN_PT_CODE*** & ***DESTINATION_PT_CODE***. Thus lets apply the same transformation to make it into a category to allow matching of the trip data to the busstop location.
+
+```{r}
+#datatable(sample_n(busstop,25), filter = 'top', options = list(paging = FALSE))
+datatable(sample_n(busstop,25))
+```
+
+```{r}
+busstop$BUS_STOP_N <- as.factor(busstop$BUS_STOP_N)
+busstop$BUS_ROOF_N <- as.factor(busstop$BUS_ROOF_N)
+```
+
+Lets check if the busstops are unique.
+
+```{r}
+busstop_isunique <- isUnique(busstop)
+busstop_extractduplicatecount <- extractduplicatecount(busstop)
+```
+
+Check if busstop data is unique returned `r busstop_isunique`. There are `r busstop_extractduplicatecount` lines that are duplicated. So lets plot the the busstop onto a map to show the busstops. There are 2 interesting observations
+
+1\) There are 5 busstop ploted in Johor\
+2) Landed Estates despite it being populated is not well served by bus stop, perhaps because we assume they have other means of transport?
+
+```{r}
+# Read the landed area shapefile downloadeded from data.gov.sg then converted to shapefile
+landed <- st_read(dsn = "data/geospatial", layer = "LandedHousingAreaLayer-polygon")%>%
+  st_transform(crs = 3414) %>% st_make_valid()
+
+```
+
+```{r}
+# Find points that are in Singapore
+sgbusstop <- st_intersection(busstop, sgp_simple)
+
+# Find points that are not within Singapore
+johorbusstop <- busstop[!busstop$BUS_STOP_N %in%
+                          sgbusstop$BUS_STOP_N,]
+```
+
+```{r}
+tmap_mode("view")
+tmap_options(check.and.fix = TRUE)
+```
+
+```{r}
+tmap_mode("plot")
+tmap_options(check.and.fix = TRUE)
+```
+
+```{r}
+tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(landed)+
+  tm_polygons(col="green", 
+              alpha = 0.6,
+              border.alpha = 0.1)+
+  tm_shape(sgbusstop)+
+  tm_dots(size = 0.005,
+          alpha = 0.5,
+          border.alpha = 0.1,
+          clustering = FALSE)+
+  tm_shape(johorbusstop)+
+  tm_dots(col="orange",
+          size = 0.01,
+          alpha = 0.5,
+          border.alpha = 0.1,
+          clustering = FALSE)
+tmap_mode("plot")
+
+```
+
+Other than above, the area not dotted with bus stops in Singapore Main Island, are broadly speaking more "ulu" e.g.
+
+a\) Central Reserve / Nature Reserve\
+b) SAF Training Facilities\
+c) Lim Chu Kang Area
+
+### **Layering Busstop with No. Trips**
+
+We should then first check there are busstops that are found in trips but don't have a busstop point mapped. This is more important because, it is possible for an existing busstop to have no demand, but not possible to have trips from a missing busstop. a) ***BUS_STOP_N*** from geometry data b) ***ORIGIN_PT_CODE*** from trips data
+
+```{r}
+# Assuming 'db1' and 'db2' are your data frames, and 'bus_stop' is the bus stop identifier
+missing_in_busstop_ORIGIN <- data.frame(setdiff(odbus202308$ORIGIN_PT_CODE,busstop$BUS_STOP_N)) %>% rename_at(1, ~'BUS_STOP_N')
+missing_in_busstop_DESTINATION <- data.frame(setdiff(odbus202308$DESTINATION_PT_CODE,busstop$BUS_STOP_N)) %>% 
+  rename_at(1, ~'BUS_STOP_N')
+missing_in_busstop_combined <- rbind(missing_in_busstop_ORIGIN,missing_in_busstop_DESTINATION) %>% unique() %>% 
+  arrange(BUS_STOP_N)
+```
+
+```{r}
+origin_daytime <- odbus202308 %>%
+  group_by(DAY_TYPE,TIME_PER_HOUR,ORIGIN_PT_CODE) %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS))
+
+origin_only <- origin_daytime %>%
+  group_by(ORIGIN_PT_CODE) %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS))
+
+origin_total <- origin_only %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS),
+            TOTAL_STOPS = n_distinct(ORIGIN_PT_CODE))
+
+missing_in_busstop_trips <- left_join(missing_in_busstop_combined, origin_only
+                                      , by=c("BUS_STOP_N" = "ORIGIN_PT_CODE")) %>%
+  arrange(desc(TOTAL_TRIPS))
+
+missing_in_busstop_total <- missing_in_busstop_trips %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS),
+            TOTAL_STOPS = n_distinct(BUS_STOP_N))
+
+missing_stop1 <- missing_in_busstop_total %>% pull(TOTAL_STOPS)
+
+missing_stop_ratio1 <- sprintf("%.1f%%", missing_in_busstop_total %>% pull(TOTAL_STOPS) / origin_total %>% pull(TOTAL_STOPS)*100)
+
+missing_trip_ratio1 <- sprintf("%.1f%%", missing_in_busstop_total %>% pull(TOTAL_TRIPS) / origin_total %>% pull(TOTAL_TRIPS)*100)  
+```
+
+Upon inspection, there are `r missing_stop1` busstops that are not found with a geometry data point. They made up of `r missing_trip_ratio1` of trips and `r missing_stop_ratio1` of bus stops. In particular, the top 2 observations 59009 and 47009 are Yishun & Woodlands Interchange respectively and should be included. Thus i have made some manual input to find the location of yishun bus interchange & woodlands temp bus interchange.
+
+Note: although woodlands regional bus interchange has started operation, there are a few bus services that continue to run from the temp bus interchange \[[LINK](https://landtransportguru.net/woodlands-temporary-bus-interchange/)\].
+
+```{r}
+manualbusstop <- tibble(BUS_STOP_N = c('59009','47009'), lat = c(1.4278664,1.4375880), lon = c(103.8361437,103.7865749), LOC_DESC = c('YISHUN BUS INT','WOODLANDS TEMP BUS INT'), BUS_ROOF_N=c('','')) 
+
+manualbusstop_geo2 <- st_as_sf(manualbusstop, coords = c("lon","lat"), crs = 4326) %>%
+  st_transform(crs = 3414) %>%
+  st_make_valid()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(manualbusstop_geo2)+
+  tm_dots(col="red",
+          size = 0.2)+  
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))
+
+```
+
+Thereafter, lets concentrate on the busstop in Singapore, and concatenate the geometry data from LTA and the manual input, and check the difference in the trips missing
+
+```{r}
+busstop2 <- rbind(sgbusstop,manualbusstop_geo2) 
+
+missing_in_busstop_ORIGIN2 <- data.frame(setdiff(odbus202308$ORIGIN_PT_CODE,busstop2$BUS_STOP_N)) %>% rename_at(1, ~'BUS_STOP_N')
+missing_in_busstop_DESTINATION2 <- data.frame(setdiff(odbus202308$DESTINATION_PT_CODE,busstop2$BUS_STOP_N)) %>% 
+  rename_at(1, ~'BUS_STOP_N')
+missing_in_busstop_combined2 <- rbind(missing_in_busstop_ORIGIN2,missing_in_busstop_DESTINATION2) %>% unique() %>% 
+  arrange(BUS_STOP_N)
+
+missing_in_busstop_trips2 <- left_join(missing_in_busstop_combined2, origin_only
+                                      , by=c("BUS_STOP_N" = "ORIGIN_PT_CODE")) %>%
+  arrange(desc(TOTAL_TRIPS))
+
+missing_in_busstop_total2 <- missing_in_busstop_trips2 %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS),
+            TOTAL_STOPS = n_distinct(BUS_STOP_N))
+
+missing_stop2 <- missing_in_busstop_total2 %>% pull(TOTAL_STOPS)
+
+missing_stop_diff <- missing_in_busstop_total %>% pull(TOTAL_STOPS) - missing_in_busstop_total2 %>% pull(TOTAL_STOPS)
+
+missing_trip_diff <- missing_in_busstop_total %>% pull(TOTAL_TRIPS) - missing_in_busstop_total2 %>% pull(TOTAL_TRIPS)
+
+
+missing_stop_ratio2 <- sprintf("%.1f%%", missing_in_busstop_total2 %>% pull(TOTAL_STOPS) / origin_total %>% pull(TOTAL_STOPS)*100)
+
+missing_trip_ratio2 <- sprintf("%.1f%%", missing_in_busstop_total2 %>% pull(TOTAL_TRIPS) / origin_total %>% pull(TOTAL_TRIPS)*100)  
+
+missing_trip_ratio_diff <- sprintf("%.1f%%", missing_trip_diff / origin_total %>% pull(TOTAL_TRIPS)*100)  
+
+```
+
+```{r}
+rm(sgp,busstop,odbus202308,mpsz,manualbusstop,manualbusstop_geo2,sgbusstop,johorbusstop,daytype_trip,distinct_values)
+gc()
+```
+
+After the update, there are `r missing_stop2` busstops that are not found with a geometry data point. They made up of `r missing_trip_ratio2` of trips and `r missing_stop_ratio2` of bus stops. By just adding `r missing_stop_diff` stops, we are now accounting for `r missing_trip_ratio_diff` more trips.
+
+Now lets plot where are the busstops with the highest origin
+
+```{r}
+busstoptime <- left_join(busstop2 , origin_only,
+            by = c("BUS_STOP_N" = "ORIGIN_PT_CODE")) %>%
+  arrange(desc(TOTAL_TRIPS))
+
+high_busstoptime <- busstoptime %>% 
+  head(100) %>%
+  select(LOC_DESC,everything())
+
+```
+
+```{r}
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(busstoptime)+
+  tm_dots(col = "TOTAL_TRIPS",
+          alpha = 1,
+          border.alpha =0.01,
+          style = "log10_pretty",
+          title = "Number of Trips")+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+```
+
+We can see that it is very difficult to visualise this given the numerous busstops. The high usage busstops are hidden among the numerous lower usage busstops, so lets do another plot to show only the top 100 busstops
+
+Once we look at it, actually it kind of coincide very closely to the MRT stations, which is not surprising because MRT are important transport node that people transit. One interesting observation, is the top 100 busstop tend to coincide more with the "older" MRT lines like NS line, EW line & NE line. This is especially pronounced in the eastern side of Singapore.
+
+```{r}
+# Read the landed area shapefile downloadeded from data.gov.sg then converted to shapefile
+MRT <- st_read(dsn = "data/geospatial", layer = "Train_Station_Exit_Layer") %>%
+  st_transform(crs = 3414) %>%
+  st_make_valid()
+
+tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(high_busstoptime)+
+  tm_dots(col = "TOTAL_TRIPS",
+          alpha = 1,
+          size = 0.1,
+          style = "pretty",
+          popup.vars=c("Number of Trips: "= "TOTAL_TRIPS",
+                       "DESC: "="LOC_DESC")
+          )+
+  tm_shape(MRT)+
+  tm_dots(col="purple", 
+          alpha = 0.05,
+          border.alpha = 0.4)
+
+#tmap_mode("plot")
+```
+
+```{r}
+rm(busstoptime,high_busstoptime,origin_only,origin_total)
+gc()
+```
+
+### **Summarising the trips into hexagon**
+
+In addition, we know that people could walk from 1 busstop to a nearby busstop. So lets summarise this result geographically. We want to group busstops that are nearby together, say by 250m.
+
+```{r}
+sgp_hex <- st_make_grid(sgp_simple,
+                       cellsize= 500,
+                       crs= 3414,
+                       what = "polygons", 
+                       square = FALSE)
+
+sgp_hexid <- sgp_hex %>%
+  st_as_sf() %>%
+  mutate(hex_id = paste0("HEX_",row_number()))
+
+sgp_hexid$hex_id <- as.factor(sgp_hexid$hex_id)
+  
+st_geometry(sgp_hexid) <- "geometry"
+
+busstop_withhex <- st_intersection(busstop2,sgp_hexid)
+
+sgp_hexid_bs_df <- st_intersection(sgp_hexid,busstop2) %>%
+  data.frame() %>%
+  select(hex_id,BUS_STOP_N, LOC_DESC)
+
+sgp_hexid_wbs_df <- sgp_hexid_bs_df %>%
+  group_by(hex_id) %>%
+  summarise(TOTAL_STOPS = n_distinct(BUS_STOP_N),
+            ALL_STOPS_ID = list(as.factor(BUS_STOP_N)),
+            ALL_STOPS_DESC = list(LOC_DESC))
+
+hex_bs_spread_df <- sgp_hexid_wbs_df %>%
+  group_by(TOTAL_STOPS) %>%
+  summarise(TOTAL_HEX = n_distinct(hex_id)) %>%
+  arrange(desc(TOTAL_HEX))
+
+sgp_hexid_wbs_geo <- left_join(sgp_hexid,sgp_hexid_wbs_df) %>%
+  filter(TOTAL_STOPS > 0)
+
+hex_wbs_number <- nrow(sgp_hexid_wbs_df)
+hex_wbs_mostfrequent <- hex_bs_spread_df$TOTAL_STOPS[1]
+hex_wbs_mostfrequent_count <- hex_bs_spread_df$TOTAL_HEX[1]
+
+rm(sgp_hex)
+gc()
+
+```
+
+#### **Busstops Distribution in Hexagon**
+
+There are `r hex_wbs_number` hexagons with busstops, of which there are `r hex_wbs_mostfrequent_count` hexagon with `r hex_wbs_mostfrequent` busstops within the same hexagon. A distribution of the number of busstops within the `r hex_wbs_number` hexagons as below.
+
+```{r}
+# Create the plot
+plot_ly(hex_bs_spread_df %>% arrange(TOTAL_STOPS), x = ~TOTAL_STOPS, y = ~TOTAL_HEX, type = 'scatter', mode = 'lines') %>%
+  layout(title = "Distribution of Bus Stops across Hexagons", xaxis = list(title = "# Bus Stops"), yaxis = list(title = "# Hexagons"))
+
+rm(hex_bs_spread_df)
+gc()
+```
+
+```{r}
+tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_wbs_geo)+
+  tm_polygons(col="TOTAL_STOPS", 
+              alpha = 1,
+              border.alpha = 0.1,
+              title = "No. of Busstops",
+              popup.vars = c("Number of Busstops: " = "TOTAL_STOPS",
+                             "Busstops Description:" = "ALL_STOPS_DESC")) +
+  tm_layout(main.title = "Busstops Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+
+tmap_mode("plot")
+```
+
+#### **Trips distribution by Hexagon**
+
+After we gotten the base hexagon matched with the number of bus stops. that forms part of the basemap, next lets find out the number of trips in each hexagon. We will also compare average with sum.
+
+a)  Sum of all trips will give a better sensing on how crowded it is.
+b)  While average will allow us to be a bit "fairer" because more busstops in 1 hexagon will usually result in more trips. However, while we don't want to attribute the trips due to how we cut the hexagon, we should also note that sometimes there are more busstops in the vicinity because there is a high demand there, e.g. interchange or transfer to MRT. Averaging in this case does not paint the correct picture
+
+```{r}
+# Assuming df is your dataframe
+origin_daytime2 <- origin_daytime
+origin_daytime2$TIME_PER_HOUR <- paste0("T",origin_daytime2$TIME_PER_HOUR)
+
+origin_daytime_wide <- origin_daytime2 %>%
+  pivot_wider(names_from = TIME_PER_HOUR, values_from = TOTAL_TRIPS) %>%
+  mutate_all(replace_na,0) %>%
+  mutate(T0609 = T6 + T7 + T8 + T9,
+         T1720 = T17 + T18 + T19 + T20,
+         T1114 = T11 + T12 + T13 + T14,
+         T1619 = T16 + T17 + T18 + T19)
+
+sgp_hexid_bs_weekday_data <- left_join(sgp_hexid_bs_df, 
+                               origin_daytime_wide %>% 
+                                 filter(DAY_TYPE == "WEEKDAY"),
+                               by = c("BUS_STOP_N" =  "ORIGIN_PT_CODE")) %>%
+  select(-c(DAY_TYPE,BUS_STOP_N,LOC_DESC)) %>%
+  group_by(hex_id) %>%
+  summarise_all(sum, na.rm=TRUE) %>%
+  mutate(diff_WD = (T0609/T1720))
+
+sgp_hexid_bs_weekday_data[sgp_hexid_bs_weekday_data == Inf] <- NaN
+
+sgp_hexid_bs_weekday_geo <- left_join(sgp_hexid_bs_weekday_data,sgp_hexid_wbs_geo) %>%
+  mutate(avT0609 = T0609 / TOTAL_STOPS,
+         avT1720 = T1720 / TOTAL_STOPS) %>%
+  st_as_sf()
+
+sgp_hexid_bs_weekend_data <- left_join(sgp_hexid_bs_df, 
+                               origin_daytime_wide %>% 
+                                 filter(DAY_TYPE == "WEEKENDS/HOLIDAY"),
+                               by = c("BUS_STOP_N" =  "ORIGIN_PT_CODE")) %>%
+  select(-c(DAY_TYPE,BUS_STOP_N,LOC_DESC)) %>%
+  group_by(hex_id) %>%
+  summarise_all(sum, na.rm=TRUE) %>%
+  mutate(diff_WE = (T1114/T1619))
+
+sgp_hexid_bs_weekend_data[sgp_hexid_bs_weekend_data == Inf] <- NaN
+
+sgp_hexid_bs_weekend_geo <- left_join(sgp_hexid_bs_weekend_data,sgp_hexid_wbs_geo) %>%
+  mutate(avT1114 = T1114 / TOTAL_STOPS,
+         avT1619 = T1619 / TOTAL_STOPS) %>%
+  st_as_sf()
+
+
+rm(origin_daytime2)
+gc()
+
+```
+
+#### **Weekday**
+
+We can see that the most congested area tend to be further away from central e.g. punngol, hougang, tampines, woodlands, yishun, jurong, boon lay in the morning. Whereas in the evening, the most congested area are more spread out, but with a concentration in the around the central / CBD region like in raffles place, cityhall, bugis.
+
+This is align with the general "routine" as people go from where they live to where they work / school in the morning. Whereas in the evening, it is in the opposite direction.
+
+However, what it generally show is the workplace / school are probably more distributed than the living location.
+
+```{r}
+#tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_bs_weekday_geo %>%
+             filter(T0609 > 0))+
+  tm_polygons(col="T0609",
+              alpha = 1,
+              border.alpha = 0.1,
+              style = "quantile",
+              palette = "Blues",
+              title = "All Passenger Trips") +
+  tm_layout(main.title = "Weekday Morning Peak 0600 - 0900 (Sum)",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.5)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+  
+#tmap_mode("plot")
+```
+
+```{r}
+#tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_bs_weekday_geo %>%
+             filter(T0609 > 0))+
+  tm_polygons(col="avT0609",
+              alpha = 1,
+              border.alpha = 0.1,
+              style = "quantile",
+              palette = "Blues",
+              title = "Average Passenger Trips") +
+  tm_layout(main.title = "Weekday Morning Peak 0600 - 0900 (Average)",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.5)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+  
+#tmap_mode("plot")
+```
+
+```{r}
+#tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_bs_weekday_geo %>%
+             filter(T1720 > 0))+
+  tm_polygons(col="T1720",
+              alpha = 1,
+              border.alpha = 0.1,
+              style = "quantile",
+              palette = "Blues",
+              title = "All Passenger Trips") +
+  tm_layout(main.title = "Weekday Evening Peak 1700 - 2000 (Sum)",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.5)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+  
+#tmap_mode("plot")
+```
+
+```{r}
+#tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_bs_weekday_geo %>%
+             filter(T1720 > 0))+
+  tm_polygons(col="avT1720",
+              alpha = 1,
+              border.alpha = 0.1,
+              style = "quantile",
+              palette = "Blues",
+              title = "Average Passenger Trips") +
+  tm_layout(main.title = "Weekday Evening Peak 1700 - 2000 (Average)",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.5)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+  
+#tmap_mode("plot")
+```
+
+Overall, there isn't a strong difference between sum and average. Thus will prefer the use of Sum as there are indeed transport nodes that have multiple busstops serving strong demand. Thus for subsequent analysis on weekend, will only be showing sum for simplicity
+
+```{r}
+#tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_bs_weekday_geo %>%
+             na.omit(diff_WD))+
+  tm_polygons(col="diff_WD",
+              alpha = 1,
+              border.alpha = 0.1,
+              #style = "quantile",
+              breaks = c(-Inf,0.5,2,Inf),
+              labels = c("Evening Congested <50%", "Similar 50%-200%", "Morning Congested >200%"),
+              palette = "Reds",
+              title = "Morning / Evening Trips") +
+  tm_layout(main.title = "Diff between Weekday Morning & Evening Peak",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.5)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+  
+#tmap_mode("plot")
+```
+
+#### **Weekend/Holiday**
+
+Whereas on Weekend, the spatial distribution is quite similar between morning and evening peaks. This could be due to different people having different schedule, e.g. some prefer to sleep in, some prefer to start early. There is no "fixed" timing that everyone must obey as per work / school.
+
+In addition, the most congested area on weekend is generally less congested than the weekdays (although as someone walking around, i certainly don't feel so, but data vs feeling, i rather trust data looking at Singapore on average). Comparing \~300,000 to 500,000 Passenger Trips on the most congested hexagonal area on Weekday Peaks, \~100,000 to 150,000 Passenger Trips on the most congested hexagonal area on Weekend Peaks.
+
+```{r}
+#tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_bs_weekend_geo %>%
+             filter(T1114 > 0))+
+  tm_polygons(col="T1114",
+              alpha = 1,
+              border.alpha = 0.1,
+              style = "quantile",
+              palette = "Blues",
+              title = "Passenger Trips") +
+  tm_layout(main.title = "Weekend/Holiday Morning Peak 1100-1400",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.5)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+  
+#tmap_mode("plot")
+```
+
+```{r}
+#tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_bs_weekend_geo %>%
+             filter(T1619 > 0))+
+  tm_polygons(col="T1619",
+              alpha = 1,
+              border.alpha = 0.1,
+              style = "quantile",
+              palette = "Blues",
+              title = "Passenger Trips") +
+  tm_layout(main.title = "Weekend/Holiday Evening Peak 1600-1900",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.5)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+  
+#tmap_mode("plot")
+```
+
+One interesting feature is a cluster of morning being more congested than evening in the Eastern Area in Loyang Way & Changi Ferry Terminal. a) For Loyang Way, it is an industrial area, perhaps there's some factory converted dormitories on loyang way where the workers are going out in the weekend. b) For Changi Ferry Terminal, it serve a line between Singapore and Johor \[[LINK](https://www.easybook.com/en-sg/ferry/terminal/changi)\] perhaps tourist from Malaysia are coming over in the Weekend/Holiday morning
+
+```{r}
+tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_bs_weekend_geo %>%
+             na.omit(diff_WE))+
+  tm_polygons(col="diff_WE",
+              alpha = 0.7,
+              border.alpha = 0.1,
+              #style = "quantile",
+              breaks = c(-Inf,0.5,2,Inf),
+              labels = c("Evening Congested <50%", "Similar 50%-200%", "Morning Congested >200%"),
+              palette = "Reds",
+              title = "Morning/ Evening Trips") +
+  tm_layout(main.title = "Diff between Weekend/Holiday Morning & Evening Peak",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.5)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+  
+tmap_mode("plot")
+```
+
+## **How are the congested area spill over?**
+
+We know there are congregation effect, e.g. where there are housing estate e.g. HDB, Condos, Purpose Built Dormitories that house the majority of the Singapore population, be it Singaporean or Pass Holders. In addition, there are concentration of people in areas for different purposes, e.g. Working at CBD, shopping at Orchard, going to School, jogging at East Coast Park etc. We have seen that earlier, but we will be interested to know how are these effect spilled over to the neighbourhood in terms of transport and where does this effect fade off.
+
+However, we know that some areas are more "ulu" / at the fringe of the Singapore e.g. Tuas, Mandai to name a few. In these places, we don't want to assume no relationship base on there are no "immediate neighbour", therefore we will want to weigh by how far is this hexagon away from X other hexagon with busstops. One way to think of this is maybe different people could be dropped off at either side of these "ulu" places, but they are still related.
+
+We will use X = 18 because typically in a hexagon, we have 6 immediate neighbours and 12 neighbour or neighbour, thus we will use 18 to get possibly the 2nd order neighbour.
+
+```{r}
+#geo <- st_geometry(sgp_hexid_wbs_geo)
+#nb <- st_knn(geo)
+#dists <- unlist(st_nb_dists(geo,nb))
+#summary(dists)
+
+sgp_hexid_bs_weekday0609_geo_nb <- sgp_hexid_bs_weekday_geo %>%
+  select(T0609, hex_id, ALL_STOPS_ID, ALL_STOPS_DESC)%>%
+  mutate(nb = st_knn(geometry,
+                     k=18),
+         wts = st_inverse_distance(nb,geometry),
+         .before = 1) %>%
+  mutate(lmT0609 = local_moran(T0609,nb,wts,nsim = 99),
+         .before = 1) %>%
+  unnest(lmT0609)
+
+
+sgp_hexid_bs_weekday1720_geo_nb <- sgp_hexid_bs_weekday_geo %>%
+  select(T1720, hex_id, ALL_STOPS_ID, ALL_STOPS_DESC)%>%
+  mutate(nb = st_knn(geometry,
+                     k=18),
+         wts = st_inverse_distance(nb,geometry),
+         .before = 1) %>%
+  mutate(lmT1720 = local_moran(T1720,nb,wts,nsim = 99),
+         .before = 1) %>%
+  unnest(lmT1720)
+
+sgp_hexid_bs_weekend1114_geo_nb <- sgp_hexid_bs_weekend_geo %>%
+  select(T1114, hex_id, ALL_STOPS_ID, ALL_STOPS_DESC)%>%
+  mutate(nb = st_knn(geometry,
+                     k=18),
+         wts = st_inverse_distance(nb,geometry),
+         .before = 1) %>%
+  mutate(lmT1114 = local_moran(T1114,nb,wts,nsim = 99),
+         .before = 1) %>%
+  unnest(lmT1114)
+
+sgp_hexid_bs_weekend1619_geo_nb <- sgp_hexid_bs_weekend_geo %>%
+  select(T1619, hex_id, ALL_STOPS_ID, ALL_STOPS_DESC)%>%
+  mutate(nb = st_knn(geometry,
+                     k=18),
+         wts = st_inverse_distance(nb,geometry),
+         .before = 1) %>%
+  mutate(lmT1619 = local_moran(T1619,nb,wts,nsim = 99),
+         .before = 1) %>%
+  unnest(lmT1619)
+
+```
+
+```{r}
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_bs_weekday0609_geo_nb) %>%
+             filter(p_ii_sim < 0.05) +
+  tm_polygons(col="median",
+              alpha = 0.7,
+              border.alpha = 0.1,
+              #style = "quantile",
+              #title = ""
+              ) +
+  tm_layout(main.title = "Weekday Morning & Evening Peak",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.5)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+
+```
+
+The busstops
 
 remember to exclude area that transport do not serve, e.g. central reserve, make the value missing to depict correctly
 
-Identify Hotspot, then no need to use contiuity matrix LISA only need local moran I, high-high, low-low, outliers
+Identify Hotspot, then no need to use contiuity matrix LISA only need local moran I, high-high, low-low, outliers.
 
 Emerging Hot Spot - Gi\* values, not the 1 without the star
 
 need to create hexagon with the sf package. there are advantage, there are some busstop that are at the fringe of causeway, so it is outside. So to catch all the busstop including the edge then we need to calculate, there are missing hexagon there
-
-```         
-  legend.width = 
-#  frame = TRUE) +
-tm_borders(alpha - 0.5) +
-tm_compass(type = "8star", size = 2)+
-tm_grid(alpha = 0.2)+
-tm_credits("Source: LTA DataMall",
-           position = c("left","bottom"))
-```
-
-
