@@ -52,7 +52,7 @@ extractduplicatecount <- function(v){
 
 ```
 
-### \*\* Setting the Static Basemap \*\*
+### **Setting the Static Basemap**
 
 This is the basemap of Singapore gotten from OneMap
 
@@ -888,11 +888,13 @@ sgp_hexid_bs_weekend1619_geo_nb <- sgp_hexid_bs_weekend_geo %>%
   unnest(lmT1619)
 
 ```
+
 ### **Weekday Morning Peak**
 
-The weekday morning peak, we see congregation of high-high cluster in major transport nodes like MRT / Bus Interchange nearer to the residential area.
+The weekday morning peak, we see congregation of high-high cluster in major transport nodes like MRT / Bus Interchange nearer to the residential area like Yishun, Woodlands, Punggol, Hougang, Tampines, Jurong
 
-Whereas the low-low clusters are in the fringe area especially in the Tuas region, where there are little residential area
+Whereas the low-low clusters are in the fringe area especially in the Tuas, Lim Chu Kang, Mandai region, where there are little residential area. The CBD area is also a low-low cluster in the morning, probably due to the low residential population there. This could change in the future where government is intending to allow mix land use in CBD with more residential.
+
 ```{r}
 tm_shape(sgp_simple)+
   tm_polygons(col="white", 
@@ -922,12 +924,14 @@ tm_shape(sgp_simple)+
              position = c("left","bottom"))
 ```
 
-
 ### **Weekday Evening Peak**
 
-The weekday evening peak is somewhat surprising, as i would have expected some high-high cluster in the CBD. 
+The weekday evening peak is somewhat surprising, as i would have expected some high-high cluster in the CBD / core central region. While the earlier graph showed there is indeed congestion at selected hexagon, it is not significant to constitute a high-high cluster, except for a small single segment in the CBD
+
+The fringe area remain as low-low cluster.
 
 ```{r}
+#tmap_mode("view")
 tm_shape(sgp_simple)+
   tm_polygons(col="white", 
               alpha = 0.6,
@@ -955,6 +959,12 @@ tm_shape(sgp_simple)+
   tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
              position = c("left","bottom"))
 ```
+
+### **Weekend Morning Peak**
+
+In line with earlier observation, the weekend schedule are more spread out. Thus the high high clusters are more spread out with people being able to choose where to go instead of a routine work / school location. The residential clusters remain high-high as people travel from their home (being the constant) to their destination. But the cluster are less congregated as compared to weekday morning peak
+
+The fringe areas remain the consistent low-low areas
 
 ```{r}
 tm_shape(sgp_simple)+
@@ -985,6 +995,12 @@ tm_shape(sgp_simple)+
              position = c("left","bottom"))
 ```
 
+### **Weekend Evening Peak**
+
+This is the period that pressumably people go home from their destination. There is a distinct new high-high cluster nearer to Dhoby Ghuat / Bugis area
+
+The low-low cluster has not much changes, and remain largely with the fringe areas.
+
 ```{r}
 tm_shape(sgp_simple)+
   tm_polygons(col="white", 
@@ -1013,3 +1029,14 @@ tm_shape(sgp_simple)+
   tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
              position = c("left","bottom"))
 ```
+
+## References
+
+Special thanks to Prof Kam & his numerous sharings
+
+\[1\] https://isss624.netlify.app/ \
+\[2\] https://isss624-ay2023-24nov.netlify.app/ \
+\[3\] https://r4gdsa.netlify.app/ \
+\[4\] https://urbandatapalette.com/post/2021-08-tessellation-sf/ \
+\[5\] https://www.easybook.com/en-sg/ferry/terminal/changi\
+\[6\] <https://landtransportguru.net/woodlands-temporary-bus-interchange/>
