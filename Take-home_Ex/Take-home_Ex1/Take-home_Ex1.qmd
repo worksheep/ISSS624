@@ -802,7 +802,7 @@ tm_shape(sgp_simple)+
 One interesting feature is a cluster of morning being more congested than evening in the Eastern Area in Loyang Way & Changi Ferry Terminal. a) For Loyang Way, it is an industrial area, perhaps there's some factory converted dormitories on loyang way where the workers are going out in the weekend. b) For Changi Ferry Terminal, it serve a line between Singapore and Johor \[[LINK](https://www.easybook.com/en-sg/ferry/terminal/changi)\] perhaps tourist from Malaysia are coming over in the Weekend/Holiday morning
 
 ```{r}
-tmap_mode("view")
+#tmap_mode("view")
 tm_shape(sgp_simple)+
   tm_polygons(col="white", 
               alpha = 0.6,
@@ -888,21 +888,28 @@ sgp_hexid_bs_weekend1619_geo_nb <- sgp_hexid_bs_weekend_geo %>%
   unnest(lmT1619)
 
 ```
+### **Weekday Morning Peak**
 
+The weekday morning peak, we see congregation of high-high cluster in major transport nodes like MRT / Bus Interchange nearer to the residential area.
+
+Whereas the low-low clusters are in the fringe area especially in the Tuas region, where there are little residential area
 ```{r}
 tm_shape(sgp_simple)+
   tm_polygons(col="white", 
               alpha = 0.6,
               border.alpha = 0.4)+
-  tm_shape(sgp_hexid_bs_weekday0609_geo_nb) %>%
-             filter(p_ii_sim < 0.05) +
+  tm_shape(sgp_hexid_wbs_geo)+
+  tm_polygons(alpha=0.05,
+              border.alpha = 0.1)+
+  tm_shape(sgp_hexid_bs_weekday0609_geo_nb %>%
+            filter(p_ii_sim < 0.05)) +
   tm_polygons(col="median",
               alpha = 0.7,
               border.alpha = 0.1,
               #style = "quantile",
               #title = ""
               ) +
-  tm_layout(main.title = "Weekday Morning & Evening Peak",
+  tm_layout(main.title = "Weekday Morning Peak",
             main.title.position = "center",
             main.title.size = 1.2,
             frame = TRUE) +
@@ -913,15 +920,96 @@ tm_shape(sgp_simple)+
   tm_grid(alpha = 0.1)+
   tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
              position = c("left","bottom"))
-
 ```
 
-The busstops
 
-remember to exclude area that transport do not serve, e.g. central reserve, make the value missing to depict correctly
+### **Weekday Evening Peak**
 
-Identify Hotspot, then no need to use contiuity matrix LISA only need local moran I, high-high, low-low, outliers.
+The weekday evening peak is somewhat surprising, as i would have expected some high-high cluster in the CBD. 
 
-Emerging Hot Spot - Gi\* values, not the 1 without the star
+```{r}
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_wbs_geo)+
+  tm_polygons(alpha=0.05,
+              border.alpha = 0.1)+
+  tm_shape(sgp_hexid_bs_weekday1720_geo_nb %>%
+            filter(p_ii_sim < 0.05)) +
+  tm_polygons(col="median",
+              alpha = 0.7,
+              border.alpha = 0.1,
+              #style = "quantile",
+              #title = ""
+              ) +
+  tm_layout(main.title = "Weekday Evening Peak",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.5)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+```
 
-need to create hexagon with the sf package. there are advantage, there are some busstop that are at the fringe of causeway, so it is outside. So to catch all the busstop including the edge then we need to calculate, there are missing hexagon there
+```{r}
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_wbs_geo)+
+  tm_polygons(alpha=0.05,
+              border.alpha = 0.1)+
+  tm_shape(sgp_hexid_bs_weekend1114_geo_nb %>%
+            filter(p_ii_sim < 0.05)) +
+  tm_polygons(col="median",
+              alpha = 0.7,
+              border.alpha = 0.1,
+              #style = "quantile",
+              #title = ""
+              ) +
+  tm_layout(main.title = "Weekend Morning Peak",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.5)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+```
+
+```{r}
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_wbs_geo)+
+  tm_polygons(alpha=0.05,
+              border.alpha = 0.1)+
+  tm_shape(sgp_hexid_bs_weekend1619_geo_nb %>%
+            filter(p_ii_sim < 0.05)) +
+  tm_polygons(col="median",
+              alpha = 0.7,
+              border.alpha = 0.1,
+              #style = "quantile",
+              #title = ""
+              ) +
+  tm_layout(main.title = "Weekend Evening Peak",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.5)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+```
