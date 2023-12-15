@@ -437,7 +437,7 @@ In addition, we know that people could walk from 1 busstop to a nearby busstop. 
 
 ```{r}
 sgp_hex <- st_make_grid(sgp_simple,
-                       cellsize= 500,
+                       cellsize= 250,
                        crs= 3414,
                        what = "polygons", 
                        square = FALSE)
