@@ -433,11 +433,11 @@ gc()
 
 ### **Summarising the trips into hexagon**
 
-In addition, we know that people could walk from 1 busstop to a nearby busstop. So lets summarise this result geographically. We want to group busstops that are nearby together, say by 250m.
+In addition, we know that people could walk from 1 busstop to a nearby busstop. So lets summarise this result geographically. We want to group busstops that are nearby together, say by 500m.
 
 ```{r}
 sgp_hex <- st_make_grid(sgp_simple,
-                       cellsize= 250,
+                       cellsize= 500,
                        crs= 3414,
                        what = "polygons", 
                        square = FALSE)
