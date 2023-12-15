@@ -1,0 +1,37 @@
+---
+title: "Take-home_Ex2"
+date: "02 December 2023"
+date-modified: "last-modified"
+format:
+  html: 
+    code-fold: true
+    code-summary: "Show the code"
+execute: 
+  echo: true
+  #echo will run all code chunk
+  eval: true
+  #
+  warning: false
+  #warning messages not displayed
+editor: visual
+#by default, nowadays no need, but the prof use it as standard practice
+#note --- below this is the end of the yaml
+---
+
+```{r}
+pacman::p_load(tmap, sf, tidyverse, sfdep, knitr, plotly, DT, lubridate, magick)
+
+```
+
+```{r}
+
+trainstation <- st_read(dsn = "data/geospatial", layer = "RapidTransitSystemStation") %>% 
+  st_transform(crs = 3414) %>%
+  st_make_valid()
+  
+tmap_options(check.and.fix = TRUE)
+tm_shape(trainstation)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)
+```

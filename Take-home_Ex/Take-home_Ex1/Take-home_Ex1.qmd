@@ -1034,9 +1034,9 @@ tm_shape(sgp_simple)+
 
 Special thanks to Prof Kam & his numerous sharings
 
-\[1\] https://isss624.netlify.app/ \
-\[2\] https://isss624-ay2023-24nov.netlify.app/ \
-\[3\] https://r4gdsa.netlify.app/ \
-\[4\] https://urbandatapalette.com/post/2021-08-tessellation-sf/ \
+\[1\] https://isss624.netlify.app/\
+\[2\] https://isss624-ay2023-24nov.netlify.app/\
+\[3\] https://r4gdsa.netlify.app/\
+\[4\] https://urbandatapalette.com/post/2021-08-tessellation-sf/\
 \[5\] https://www.easybook.com/en-sg/ferry/terminal/changi\
 \[6\] <https://landtransportguru.net/woodlands-temporary-bus-interchange/>
