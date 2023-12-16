@@ -1,1 +1,107 @@
+---
+title: "In-Class_Ex5"
+date: "16 December 2023"
+date-modified: "last-modified"
+format:
+  html: 
+    code-fold: true
+    code-summary: "Show the code"
+execute: 
+  echo: true
+  #echo will run all code chunk
+  eval: true
+  #
+  warning: false
+  #warning messages not displayed
+editor: visual
+#by default, nowadays no need, but the prof use it as standard practice
+#note --- below this is the end of the yaml
+---
+
+##My Own Notes
+
+each will have a weight matrix. the weight matrix is the same as lesson 2's spatial weight. We only focus on 1 area of application, which is the spatial interaction. We can apply for geographical regression, it is the same method. We only focus on how we further modify the spatial interaction mode. we have unconstraint, origin, destination, doubly constraint. we have 4, double up with weight version. in that case we can develop a total of 9 models
+
+Model 1 - Unconstraint
+Model 2 - Origin
+Model 3 - Destination
+
+All the R packages we use, it is very well documented, it is progressively developed. Most of the library developed are based on certain well-published article or paper. e.g. published in 2008, and wrapped over into the software tools. Facebook Team has developed a very good algorithm for time series forecasting and it has been wrapped over to python, R, C etc. But if we compare the packages with well methodical documentation / papers, R has more.
+
+for spflow, it is published on cran, but to publish on cran they need to be consistent with using latest packages. However, packages are developed in parallel, and developers tend to publish the latest development in github. which we will do this time round
+
+## Setting Up
+
+```{r}
+#|eval = false
+
+devtools::install_github("LukeCe/spflow")
+```
+
+we use devtools:: because we didn't load it into the R environment. So we use :: to do it once, w/o the need to load
+
+Next, we will load spflow and other R packages into R environment
+
+```{r}
+pacman::p_load(tmap, sf, spdep, sp, Matrix, spflow, reshape2, knitr, tidyverse)
+```
+
+the main change is changing mask with Matrix. Matrix is a commonly used package for econometrics, and it is updated frequently, so we can just use the cran version
+
+spdep, we use it to derive spatial weight matrix
+sp handle spatial polygon
+knitr for html table
+tidyverse for handling data attribute table
+
+for this exercise, we just need 1 set. whereas for take-home ex2, we need to specify is it for origin or destination. they will automatically look for it in spflow.
+
+the MPSZ geographical unit is planning subzone
+Hexagon created on the fly is 1,2,3,4 it is numerical field, it will be treated as continous variable and will be included in the algorithm as continuous variable. we need to change it to a character or factor field.
+
+```{r}
+mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414)
+
+busstop <- st_read(dsn = "data/geospatial",
+                   layer = "BusStop") %>%
+  st_transform(crs = 3414)
+
+mpsz$`BUSSTOP_COUNT` <- lengths(
+  st_intersects(
+    mpsz,busstop
+  )
+)
+
+mpsz_busstop <- mpsz %>%
+  filter(BUSSTOP_COUNT > 0)
+```
+
+to find out which planning subzone has no busstop. With this information
+
+```{r}
+centroids <- suppressWarnings({
+  st_point_on_surface(st_geometry(mpsz_busstop))
+})
+
+mpsz_nb <- list(
+  "by_contiguity" = poly2nb(mpsz_busstop),
+  "by_distance" = dnearneigh(centroids,
+                             d1 = 0, d2 = 5000),
+  "by_knn" = knn2nb(knearneigh(centroids,3))
+)
+
+```
+
+contiguity , we just want to use a list, by default it is a queens method
+dnearneigh limit is 5000
+hexagon we have 6 side, so we can choose 6. but for subzone, we can just use 3
+
+for distance based, they will first take the centroid. then use the centroid for the distance. 
+
+Should show out and have a better feel of the neighbour. when we prepare for output discussion, we can zoom in if it is too messy.
+
+```{r}
+
+```
 

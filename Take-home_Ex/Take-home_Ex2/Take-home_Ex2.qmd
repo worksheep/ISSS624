@@ -23,7 +23,7 @@ pacman::p_load(tmap, sf, tidyverse, sfdep, knitr, plotly, DT, lubridate, magick)
 
 ```
 
-```{r}
+```
 
 trainstation <- st_read(dsn = "data/geospatial", layer = "RapidTransitSystemStation") %>% 
   st_transform(crs = 3414) %>%
