@@ -18,7 +18,7 @@ editor: visual
 #note --- below this is the end of the yaml
 ---
 
-##My Own Notes
+## My Own Notes
 
 each will have a weight matrix. the weight matrix is the same as lesson 2's spatial weight. We only focus on 1 area of application, which is the spatial interaction. We can apply for geographical regression, it is the same method. We only focus on how we further modify the spatial interaction mode. we have unconstraint, origin, destination, doubly constraint. we have 4, double up with weight version. in that case we can develop a total of 9 models
 
@@ -33,7 +33,7 @@ for spflow, it is published on cran, but to publish on cran they need to be cons
 ## Setting Up
 
 ```{r}
-#|eval = false
+#| eval: false
 
 devtools::install_github("LukeCe/spflow")
 ```
@@ -59,6 +59,8 @@ the MPSZ geographical unit is planning subzone
 Hexagon created on the fly is 1,2,3,4 it is numerical field, it will be treated as continous variable and will be included in the algorithm as continuous variable. we need to change it to a character or factor field.
 
 ```{r}
+#| eval: false
+
 mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019") %>%
   st_make_valid() %>%
   st_transform(crs = 3414)
@@ -80,6 +82,8 @@ mpsz_busstop <- mpsz %>%
 to find out which planning subzone has no busstop. With this information
 
 ```{r}
+#| eval: false
+
 centroids <- suppressWarnings({
   st_point_on_surface(st_geometry(mpsz_busstop))
 })
@@ -101,7 +105,204 @@ for distance based, they will first take the centroid. then use the centroid for
 
 Should show out and have a better feel of the neighbour. when we prepare for output discussion, we can zoom in if it is too messy.
 
+
+it reduce the processing time. once we save
+
+
 ```{r}
+#| eval: false
+odbus6_9 <- read_rds("data/rds/odbus6_9.rds")
 
 ```
 
+mpsz_nb is neighbour, it is the 1 that gives us the weight (w)
+mpsz_flow is the origin, destination and trips (flow)
+mpsz_var is the explanatory variables
+
+```{r}
+mpsz_nb <- read_rds("data/rds/mpsz_nb.rds")
+mpsz_flow <- read_rds("data/rds/mpsz_flow.rds")
+mpsz_var <- read_rds("data/rds/mpsz_var.rds")
+```
+
+### creating `spflow_network-class` objects
+
+`spflow_network-class` is an S4 class that contains all information on a spatial network which is composed by a set of nodes that are linked by some neighbourhood relation. It can be created by using [`spflow_network()`]
+
+```{r}
+mpsz_net <- spflow_network(
+  id_net = "sg",
+  node_neighborhood = 
+    nb2mat(mpsz_nb$by_contiguity),
+  node_data = mpsz_var,
+  node_key_column = "SZ_CODE"
+)
+
+mpsz_net
+```
+
+id_net, can be anything. prof just called it SG. this is just assigning it an ID name, no specific meaning or variable that it should draw from.
+
+```{r}
+mpsz_net_pairs <- spflow_network_pair(
+  id_orig_net = "sg",
+  id_dest_net = "sg",
+  pair_data = mpsz_flow,
+  orig_key_column = "ORIGIN_SZ",
+  dest_key_column = "DESTIN_SZ"
+)
+
+mpsz_net_pairs
+```
+
+the mpsz_net_pair is a structured specifically for this purpose, it help to build the object class specifically. Then we no need to write all the code at the low level.
+
+```{r}
+mpsz_multi_net <- spflow_network_multi(mpsz_net,
+                                       mpsz_net_pairs)
+
+mpsz_multi_net
+```
+
+note we cannot reverse the order. the syntax has been dictated. network class first then network_pair(flow) class
+
+the mpsz_flow must be n by n. 313*313. we need to find out all the administrative boundary with busstop. then we calculate base on that particular layer. if it is not consistent, then it will forever give us error.
+
+Multicollinearity refer to to a situation in whihc more than 2 explanatory variabels in a multiple regression
+
+```{r}
+cor_formula <- log(1+ TRIPS) ~
+  BUSSTOP_COUNT +
+  AGE7_12 +
+  AGE13_24 +
+  AGE25_64 +
+  SCHOOL_COUNT +
+  BUSINESS_COUNT +
+  RETAILS_COUNT +
+  FINSERV_COUNT +
+  P_(log(DISTANCE + 1))
+
+cor_mat <- pair_cor(
+  mpsz_multi_net,
+  spflow_formula = cor_formula,
+  add_lags_x = FALSE
+)
+
+#for labelling the variable
+colnames(cor_mat) <- paste0(
+  substr(
+    colnames(cor_mat),1,6
+  ),"..."
+)
+
+cor_image(cor_mat)
+```
+
+P_(log(DISTANCE+1)), P stand for impedence, translate
+it run for all origin, destination and intrazonal.
+
+the lag is to add neighbourhood, we testing input variable only, so no need to lag
+
+
+### Base Model
+```{r}
+base_model <- spflow(
+  spflow_formula = log(1+TRIPS) ~
+    O_(BUSSTOP_COUNT+
+         AGE25_64)+
+    D_(SCHOOL_COUNT +
+         BUSINESS_COUNT +
+         RETAILS_COUNT +
+         FINSERV_COUNT) +
+    P_(log(DISTANCE +1)),
+  spflow_networks = mpsz_multi_net
+)
+
+base_model
+```
+
+busstop count only in origin, but can put in origin too if we want to
+default is MLE, model 9, 
+rho_d means destination constraint
+rho_o means origin constraint
+rho_w is the intrazonal
+
+D_SCHOOL_COUNT is destination school count, immediate subzone is significant, but school in nearby subzone does not flow over (D_SCHOOL_COUNT.lag1 is insignificant)
+
+this is similar for business
+
+retail, not significant for morning peak
+
+financial institution, itself and immediate neighbour is significant. attractiveness include its neighbour. shelton way, cover 3 planning subzone
+
+
+if there's spatial autocorrelation, then it will not be a horizontal line
+
+```{r}
+old_par <- par(mfrow = c(1,3),
+               mar = c(2,2,2,2))
+spflow_moran_plots(base_model)
+
+```
+
+```{r}
+par(old_par)
+
+corr_residual <- pair_cor(base_model)
+colnames(corr_residual) <- substr(colnames(corr_residual),1,6)
+cor_image(corr_residual)
+```
+what we interested in this plot is really the residual. Residual or the destination, origin. it allow for spatial autocorrelation in moran scatter plot
+
+```{r}
+spflow_formula <- log(1+TRIPS) ~
+    O_(BUSSTOP_COUNT+
+         AGE25_64)+
+    D_(SCHOOL_COUNT +
+         BUSINESS_COUNT +
+         RETAILS_COUNT +
+         FINSERV_COUNT) +
+    P_(log(DISTANCE +1))
+
+model_control <- spflow_control(
+  estimation_method = "mle",
+  model = "model_8"
+)
+
+mle_model8 <- spflow(
+  spflow_formula,
+  spflow_networks = mpsz_multi_net,
+  estimation_control = model_control
+)
+
+mle_model8
+```
+```{r}
+model_control <- spflow_control(
+  estimation_method = "mle",
+  model = "model_1"
+)
+
+mle_model1 <- spflow(
+  spflow_formula,
+  spflow_networks = mpsz_multi_net,
+  estimation_control = model_control
+)
+
+mle_model1
+```
+
+```{r}
+model_control <- spflow_control(
+  estimation_method = "mle",
+  model = "model_2"
+)
+
+mle_model2 <- spflow(
+  spflow_formula,
+  spflow_networks = mpsz_multi_net,
+  estimation_control = model_control
+)
+
+mle_model2
+```
