@@ -2015,6 +2015,19 @@ write_rds(doubly_constraint, "data/rds/doubly_constraint.rds")
 doubly_constraint <- read_rds("data/rds/doubly_constraint.rds")
 summary(doubly_constraint)
 ```
+### Model Discussion
+
+I included a lot of other variables to explain the situation. However i am fairly surprise that they are all significant, given the possibility of repeated variables such as MRT/LRT STN with MRT/LRT Exit. 
+
+1) ORIGIN_TOTAL_PTE_POP, it is negative instead of positive, i will expect higher population correlate to higher trips. A possibility is people living in Condo / Landed could be using more of private transport instead of public transport
+2) ORIGIN_HOTEL_ROOMS, it is negative instead of positive. i will expect more hotel room correlated to higher tourist. Thus higher trips. A possibility is they don't go out so early for tourist location, or they are living near to their destination thus no need for further transport. Since most hotels are centrally located
+3) ORIGIN_MRT / LRT. it is negative. Not unexpected, since commuters may prefer MRT if they are nearer to MRT than buses
+4) DESTINATION MRT / LRT. it is negative. Likewise to above, commuters may prefer to take the MRT to this location if the destination is near to MRT.
+5) DESTINATION PRE SCHOOl. negative, perhaps due to the fact that most people will prefer a pre school that is near their house for convinence
+6) DESTINATION TETIARY SCHOOL. positive. i thought it may not be that significant since Tetiary Education have staggered timetable for different students. However, it seems that a big part still go to school early. One possibility is the data is Aug23, which conincide with starting of school term for most tetiary schools. Will be interesting to see if it is positive throughout the year, especially during school break
+7) DESTINATION HAWKER. negative. perhaps i should put it as ORIGIN instead of DESTINATION, because we may tend to eat nearby before going to work, instead of going to a hawker via bus in the morning peak hour
+
+
 
 ### Model Comparison
 
