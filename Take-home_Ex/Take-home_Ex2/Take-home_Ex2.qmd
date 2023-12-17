@@ -39,7 +39,7 @@ To aid us in the analysis, we are using R and the associated packages. We set th
 -   **httr :** used to make API calls, especially to OneMap API to geocode the address
 
 ```{r}
-pacman::p_load(tmap, sf, tidyverse, sfdep, knitr, plotly, DT, lubridate, magick, httr, stplanr)
+pacman::p_load(tmap, sf, tidyverse, sfdep, knitr, plotly, DT, lubridate, magick, httr, stplanr, sp, reshape2, performance, ggpubr)
 ```
 
 ### **Reusable Functions**
@@ -62,6 +62,16 @@ extractduplicatecount <- function(v){
     filter(n()>1) %>%
     ungroup() %>%
     nrow())
+}
+
+#replace specific value in a column of a dataframe
+replace_in_dataframe <- function(dataframe, columnname, valuetofind, valuetoreplace){
+  dataframe[[columnname]][dataframe[[columnname]] == valuetofind] <- valuetoreplace
+  dataframe
+}
+
+calcr2 <- function(v1,v2){
+  cor(v1,v2)^2
 }
 
 ```
@@ -713,7 +723,7 @@ flowlines <- od2line(flow = hex_trip_df,
                      zones = sgp_hexid_wbs_geo,
                      zone_code = "hex_id") %>%
   st_make_valid() %>%
-  select(OD,TOTAL_TRIPS,everything())
+  select(OD,TOTAL_TRIPS,ORIG_HEX_ID,DEST_HEX_ID)
 ```
 
 ::: callout-tip
@@ -1587,8 +1597,6 @@ tm_shape(sgp_simple)+
 
 ### **Combining the different attributes**
 
-### **Count**
-
 ```{r}
 sgp_hexid_attr_df <- sgp_hexid_wbs_geo %>%
   select(hex_id,TOTAL_STOPS) %>%
@@ -1657,11 +1665,6 @@ sgp_hexid_attr_df <- sgp_hexid_wbs_geo %>%
                                            business_sf
                                                   ))
   )
-```
-
-#### **Sum**
-
-```{r}
 
 hdb_sf_hex <- st_intersection(hdb_sf,sgp_hexid) %>%
   data.frame() %>%
@@ -1680,14 +1683,416 @@ hotel_sf_hex <- st_intersection(hotel_sf,sgp_hexid) %>%
   group_by(hex_id) %>%
   summarise(TOTAL_HOTEL_ROOM = sum(TOTALROOMS))
 
+hawker_sf_hex <- st_intersection(hawker_sf,sgp_hexid) %>%
+  data.frame() %>%
+  group_by(hex_id) %>%
+  summarise(TOTAL_HAWKER_STALL = sum(no_of_stalls))
+
 
 sgp_hexid_attr_df <- left_join(sgp_hexid_attr_df,hdb_sf_hex)
 sgp_hexid_attr_df <- left_join(sgp_hexid_attr_df,uradwelling_sf_hex)
 sgp_hexid_attr_df <- left_join(sgp_hexid_attr_df,hotel_sf_hex)
+sgp_hexid_attr_df <- left_join(sgp_hexid_attr_df,hawker_sf_hex)
 
 sgp_hexid_attr_df[is.na(sgp_hexid_attr_df)] <- 0
+sgp_hexid_attr_df$TOTAL_BUS_INT <- ifelse(sgp_hexid_attr_df$TOTAL_BUS_INT >1,1,sgp_hexid_attr_df$TOTAL_BUS_INT)
+
+
+```
+
+::: callout-save
+```{r}
+#| eval: false
+
+write_rds(sgp_hexid_attr_df, "data/rds/sgp_hexid_attr_df.rds")
+```
+:::
+
+### **Distance**
+
+Next, spDists() of sp package will be used to compute the Euclidean distance between the centroids of the Hexagons
+
+```{r}
+
+sgp_hexid_wbsclean_matrix <- sgp_hexid_wbs_geo %>%
+  select(hex_id) %>%
+  as("Spatial")
+
+dist_mat <- spDists(sgp_hexid_wbsclean_matrix,
+                    longlat = FALSE)
+colnames(dist_mat) <- paste0(sgp_hexid_wbsclean_matrix$hex_id)
+rownames(dist_mat) <- paste0(sgp_hexid_wbsclean_matrix$hex_id)
+kable(head(dist_mat, n=c(10,10)))
+```
+
+we see many 750 distance, which is the distance between neighbouring hexagons. This is because we generated the hexagons as such. Thereafter, lets "unpivot" the data. Thereafter, given that commuters can travel within the hexagon as well, we will need to replace the 0 distance with a distance roughly that people will walk ~ 300m
+
+```{r}
+distPair <- melt(dist_mat) %>%
+  rename(DISTANCE = value,
+         ORIG_HEX_ID = Var1,
+         DEST_HEX_ID = Var2)
+
+kable(head(distPair, 10))
+
+```
+```{r}
+distPair <- replace_in_dataframe(distPair,"DISTANCE",0,300)
+kable(head(distPair, 10))
+
+rm(hdb_sf_hex,hotel_sf_hex,uradwelling_sf_hex)
+gc()
+```
+
+::: callout-save
+```{r}
+#| eval: false
+
+write_rds(distPair, "data/rds/distPair.rds")
+```
+:::
+
+## Spatial Model
+
+###Replacing 0
+We are using a log model, and log(0) is infinity
+
+```{r}
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df,"TOTAL_BUS_STOPS",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_BUS_INT",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_MRT_INT",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_MRT_STN",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_LRT_STN",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_STN_EXIT",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_PRE_SCHOOL",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_PRI_SCHOOL",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_SECJC_SCHOOL",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_PTE_SCHOOL",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_TET_SCHOOL",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_FNB",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_ENTERTAINMENT",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_TOURISM",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_SILVERZONE",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_LEISURE",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_RETAIL",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_FINSERV",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_ELDERCARE",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_BUSINESS",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_HDB_POP",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_HDB_UNIT",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_PTE_POP",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_PTE_UNIT",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_HOTEL_ROOM",0,0.5)
+sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df_cali,"TOTAL_HAWKER_STALL",0,0.5)
+
+```
+
+### Merging all
+
+```{r}
+ORIGIN_ATTR <- sgp_hexid_attr_df_cali %>%
+  data.frame() %>%
+  select(hex_id,
+         TOTAL_BUS_STOPS,
+         TOTAL_BUS_INT,
+         TOTAL_MRT_INT,
+         TOTAL_MRT_STN,
+         TOTAL_LRT_STN,
+         TOTAL_STN_EXIT,
+         TOTAL_HDB_POP,
+         TOTAL_HOTEL_ROOM,
+         TOTAL_PTE_POP,
+         ) %>%
+  rename(HEX_ID = hex_id) %>%
+  rename_with(~paste("ORIG",.,sep="_"))
+
+DESTINATION_ATTR <- sgp_hexid_attr_df_cali %>%
+  data.frame() %>%
+  select(-c(
+         TOTAL_HDB_POP,
+         TOTAL_HOTEL_ROOM,
+         TOTAL_PTE_POP,
+         TOTAL_HDB_UNIT,
+         TOTAL_PTE_UNIT,
+         geometry)
+         ) %>%
+  rename(HEX_ID = hex_id) %>%
+  rename_with(~paste("DEST",.,sep="_"))
 
 ```
 
 ```{r}
+flowmerge <- flowlines %>%
+  left_join(distPair) %>%
+  left_join(ORIGIN_ATTR) %>%
+  left_join(DESTINATION_ATTR)
 ```
+```{r}
+summary(flowmerge)
+```
+::: callout-save
+```{r}
+#| eval: false
+
+write_rds(flowmerge, "data/rds/flowmerge.rds")
+```
+:::
+
+### Interzonal Analysis
+
+#### Uncontraint
+
+```
+#|eval: false
+rm(list = ls())
+flowmerge_interzonal <- read_rds("data/rds/flowmerge.rds") %>%
+  filter(ORIG_HEX_ID != DEST_HEX_ID)
+
+unconstraint <- glm(
+  formula = TOTAL_TRIPS ~
+#  ORIG_HEX_ID +
+#  DEST_HEX_ID + 
+  log(DISTANCE) +
+  log(ORIG_TOTAL_BUS_STOPS) +
+  log(ORIG_TOTAL_BUS_INT) +
+  log(ORIG_TOTAL_MRT_INT) +
+  log(ORIG_TOTAL_MRT_STN) +
+  log(ORIG_TOTAL_LRT_STN) +
+  log(ORIG_TOTAL_STN_EXIT) +
+  log(ORIG_TOTAL_HDB_POP) +
+  log(ORIG_TOTAL_HOTEL_ROOM) +
+  log(ORIG_TOTAL_PTE_POP) +
+  log(DEST_TOTAL_BUS_STOPS) +
+  log(DEST_TOTAL_BUS_INT) +
+  log(DEST_TOTAL_MRT_INT) +
+  log(DEST_TOTAL_MRT_STN) +
+  log(DEST_TOTAL_LRT_STN) +
+  log(DEST_TOTAL_STN_EXIT) +
+  log(DEST_TOTAL_PRE_SCHOOL) +
+  log(DEST_TOTAL_PRI_SCHOOL) +
+  log(DEST_TOTAL_SECJC_SCHOOL) +
+  log(DEST_TOTAL_PTE_SCHOOL) +
+  log(DEST_TOTAL_TET_SCHOOL) +
+  log(DEST_TOTAL_HAWKER_STALL) +
+  log(DEST_TOTAL_FNB) +
+  log(DEST_TOTAL_ENTERTAINMENT) +
+  log(DEST_TOTAL_TOURISM) +
+  log(DEST_TOTAL_SILVERZONE) +
+  log(DEST_TOTAL_LEISURE) +
+  log(DEST_TOTAL_RETAIL) +
+  log(DEST_TOTAL_FINSERV) +
+  log(DEST_TOTAL_ELDERCARE) +
+  log(DEST_TOTAL_BUSINESS),
+  family = poisson(link = "log"),
+  data = flowmerge_interzonal,
+  na.action = na.exclude
+  )
+
+write_rds(unconstraint, "data/rds/unconstraint.rds")
+```
+
+```{r}
+unconstraint <- read_rds("data/rds/unconstraint.rds")
+summary(unconstraint)
+```
+#### Origin Constraint
+
+```
+#|eval: false
+
+rm(list = ls())
+flowmerge_interzonal <- read_rds("data/rds/flowmerge.rds") %>%
+  filter(ORIG_HEX_ID != DEST_HEX_ID)
+
+origin_cons <- glm(
+  formula = TOTAL_TRIPS ~
+  ORIG_HEX_ID +
+#  DEST_HEX_ID + 
+  log(DISTANCE) +
+#  log(ORIG_TOTAL_BUS_STOPS) +
+#  log(ORIG_TOTAL_BUS_INT) +
+#  log(ORIG_TOTAL_MRT_INT) +
+#  log(ORIG_TOTAL_MRT_STN) +
+#  log(ORIG_TOTAL_LRT_STN) +
+#  log(ORIG_TOTAL_STN_EXIT) +
+#  log(ORIG_TOTAL_HDB_POP) +
+#  log(ORIG_TOTAL_HOTEL_ROOM) +
+#  log(ORIG_TOTAL_PTE_POP) +
+  log(DEST_TOTAL_BUS_STOPS) +
+  log(DEST_TOTAL_BUS_INT) +
+  log(DEST_TOTAL_MRT_INT) +
+  log(DEST_TOTAL_MRT_STN) +
+  log(DEST_TOTAL_LRT_STN) +
+  log(DEST_TOTAL_STN_EXIT) +
+  log(DEST_TOTAL_PRE_SCHOOL) +
+  log(DEST_TOTAL_PRI_SCHOOL) +
+  log(DEST_TOTAL_SECJC_SCHOOL) +
+  log(DEST_TOTAL_PTE_SCHOOL) +
+  log(DEST_TOTAL_TET_SCHOOL) +
+  log(DEST_TOTAL_HAWKER_STALL) +
+  log(DEST_TOTAL_FNB) +
+  log(DEST_TOTAL_ENTERTAINMENT) +
+  log(DEST_TOTAL_TOURISM) +
+  log(DEST_TOTAL_SILVERZONE) +
+  log(DEST_TOTAL_LEISURE) +
+  log(DEST_TOTAL_RETAIL) +
+  log(DEST_TOTAL_FINSERV) +
+  log(DEST_TOTAL_ELDERCARE) +
+  log(DEST_TOTAL_BUSINESS),
+  family = poisson(link = "log"),
+  data = flowmerge_interzonal,
+  na.action = na.exclude
+  )
+
+write_rds(origin_cons, "data/rds/origin_cons.rds")
+
+```
+
+```{r}
+origin_cons <- read_rds("data/rds/origin_cons.rds")
+summary(origin_cons)
+```
+
+#### Destination Constraint
+
+```
+#|eval: false
+
+rm(list = ls())
+flowmerge_interzonal <- read_rds("data/rds/flowmerge.rds") %>%
+  filter(ORIG_HEX_ID != DEST_HEX_ID)
+
+destination_cons <- glm(
+  formula = TOTAL_TRIPS ~
+#  ORIG_HEX_ID +
+  DEST_HEX_ID + 
+  log(DISTANCE) +
+  log(ORIG_TOTAL_BUS_STOPS) +
+  log(ORIG_TOTAL_BUS_INT) +
+  log(ORIG_TOTAL_MRT_INT) +
+  log(ORIG_TOTAL_MRT_STN) +
+  log(ORIG_TOTAL_LRT_STN) +
+  log(ORIG_TOTAL_STN_EXIT) +
+  log(ORIG_TOTAL_HDB_POP) +
+  log(ORIG_TOTAL_HOTEL_ROOM) +
+  log(ORIG_TOTAL_PTE_POP),
+  family = poisson(link = "log"),
+  data = flowmerge_interzonal,
+  na.action = na.exclude
+  )
+
+write_rds(destination_cons, "data/rds/destination_cons.rds")
+```
+
+```{r}
+destination_cons <- read_rds("data/rds/destination_cons.rds")
+summary(destination_cons)
+```
+
+#### Doubly Constraint
+
+```
+#|eval: false
+
+rm(list = ls())
+flowmerge_interzonal <- read_rds("data/rds/flowmerge.rds") %>%
+  filter(ORIG_HEX_ID != DEST_HEX_ID)
+
+doubly_constraint <- glm(
+  formula = TOTAL_TRIPS ~
+  ORIG_HEX_ID +
+  DEST_HEX_ID + 
+  log(DISTANCE),
+  family = poisson(link = "log"),
+  data = flowmerge_interzonal,
+  na.action = na.exclude
+  )
+
+write_rds(doubly_constraint, "data/rds/doubly_constraint.rds")
+```
+
+```{r}
+doubly_constraint <- read_rds("data/rds/doubly_constraint.rds")
+summary(doubly_constraint)
+```
+
+### Model Comparison
+
+The Doubly Constrained model has the lowest Root Mean Square Error, i.e. giving the highest prediction accuracy. However given that i have included some many variables in trying to explain the transport flow. I could be overfitting, e.g. on station exit and MRT/LRT Station, they are kind of the same thing.
+
+```{r}
+model_list <- list(
+  Unconstrained = unconstraint,
+  Origin_Constrained = origin_cons,
+  Destination_Constrained = destination_cons,
+  Doubly_Constrained = doubly_constraint)
+
+compare_performance(model_list,
+                    metrics = c("RMSE","AIC","BIC"))
+```
+
+```{r}
+unconstraint_fv <- as.data.frame(unconstraint$fitted.values) %>%
+  round(digits = 0)
+colnames(unconstraint_fv)[1] <- "unconstraint_trips"
+
+origin_cons_fv <- as.data.frame(origin_cons$fitted.values) %>%
+  round(digits = 0) 
+colnames(origin_cons_fv)[1] <- "origin_cons_trips"
+
+destination_cons_fv <- as.data.frame(destination_cons$fitted.values) %>%
+  round(digits = 0)
+colnames(destination_cons_fv)[1] <- "destination_cons_trips"
+
+doubly_constraint_fv <- as.data.frame(doubly_constraint$fitted.values) %>%
+  round(digits = 0)
+colnames(doubly_constraint_fv)[1] <- "doubly_constraint_trips"
+
+flowmerge_interzonal <- read_rds("data/rds/flowmerge.rds") %>%
+  filter(ORIG_HEX_ID != DEST_HEX_ID) %>%
+  cbind(unconstraint_fv,origin_cons_fv,destination_cons_fv,doubly_constraint_fv)
+
+uncon_p <- ggplot(data = flowmerge_interzonal,
+                aes(x = unconstraint_trips,
+                    y = TOTAL_TRIPS)) +
+  geom_point() +
+  geom_smooth(method = lm) +
+  coord_cartesian(xlim=c(0,60000),
+                  ylim=c(0,60000))
+
+orig_p <- ggplot(data = flowmerge_interzonal,
+                aes(x = origin_cons_trips,
+                    y = TOTAL_TRIPS)) +
+  geom_point() +
+  geom_smooth(method = lm) +
+  coord_cartesian(xlim=c(0,60000),
+                  ylim=c(0,60000))
+
+dest_p <- ggplot(data = flowmerge_interzonal,
+                aes(x = destination_cons_trips,
+                    y = TOTAL_TRIPS)) +
+  geom_point() +
+  geom_smooth(method = lm) +
+  coord_cartesian(xlim=c(0,60000),
+                  ylim=c(0,60000))
+
+docon_p <- ggplot(data = flowmerge_interzonal,
+                aes(x = doubly_constraint_trips,
+                    y = TOTAL_TRIPS)) +
+  geom_point() +
+  geom_smooth(method = lm) +
+  coord_cartesian(xlim=c(0,60000),
+                  ylim=c(0,60000))
+
+
+ggarrange(uncon_p, orig_p,dest_p,docon_p,
+          ncol = 2,
+          nrow = 2)
+```
+
+## Conclusion
+
+There seem to be some unexplained variables that are still being captured by the "location", given that the best model is the unconstraint model. Despite the addition of multiple variables, it doesn't seem to carry much gravity in explaning the transport pattern of commuters much more than the "location" itself. It will seem that commuters have different reasons for going to places and BUS journey serve the last mile & door-to-door depending on the commuters' choice, thus making it more heterogenous than perhaps MRT journey.
+
+Distance is a key factor for bus trips, however this could largely be due to the current model that Singapore is pursuing. We are expanding our MRT lines and intend to make our commuters within 10-15mins away from a MRT. This will eventually make buses more of the "short distance" transport that carries our commuters to the MRT instead. An example is the recent intention to cancel the bus service 167. [https://www.channelnewsasia.com/singapore/bus-service-167-ridership-falls-lta-commuters-unhappy-3928596]
+If we go back to 1980s [https://www.youtube.com/watch?v=DnfsYldEE7M], where the govt was reviewing the need for MRT immediately, and if we should expand express bus services, things could turn out quite differently.
