@@ -1,0 +1,1630 @@
+---
+title: "Take-home_Ex2"
+date: "02 December 2023"
+date-modified: "last-modified"
+format:
+  html: 
+    code-fold: true
+    code-summary: "Show the code"
+execute: 
+  echo: true
+  #echo will run all code chunk
+  eval: true
+  #
+  warning: false
+  #warning messages not displayed
+editor: visual
+#by default, nowadays no need, but the prof use it as standard practice
+#note --- below this is the end of the yaml
+---
+
+
+## **Objective**
+
+To visualise and try to understand the flow of commuters in the Weekday Morning Peak
+
+## **Setting Up the Environment**
+
+### Packages
+
+To aid us in the analysis, we are using R and the associated packages. We set the stage by loading them into the environment as below
+
+-   [**tmap**](https://cran.r-project.org/web/packages/tmap/index.html): used for creating thematic maps, such as choropleth and bubble maps
+
+-   [**sf**](https://cran.r-project.org/web/packages/sf/index.html): used for importing, managing, and processing geospatial data
+
+-   [**tidyverse**](https://www.tidyverse.org/): a collection of packages for data science tasks
+
+-   **sfdep**: used to create spatial weights matrix objects
+
+-   **httr :** used to make API calls, especially to OneMap API to geocode the address
+
+
+```{r}
+pacman::p_load(tmap, sf, tidyverse, sfdep, knitr, plotly, DT, lubridate, magick, httr, stplanr)
+```
+
+
+### Reusable Functions
+
+In addition, we check for duplicates fairly often, thus we can make it into a function for reuseability
+
+
+```{r}
+#these procedures will be reused, so easier to keep them as a function
+
+#check if all unique
+isUnique <- function(v){
+  return(!any(duplicated(v)))
+}
+
+
+#extract the number of rows that are not unique
+extractduplicatecount <- function(v){
+  return(v %>%
+    group_by_all() %>%
+    filter(n()>1) %>%
+    ungroup() %>%
+    nrow())
+}
+
+```
+
+
+## Dataset Used
+
+::: panel-tabset
+**Basemap**
+
++------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------+
+| Data       | Source                                                                                                                                                      | Remarks                                                                 |
++============+=============================================================================================================================================================+=========================================================================+
+| mpsz       | *Master Plan 2019 Subzone Boundary (No Sea)* from [data.gov.sg](https://beta.data.gov.sg/collections/1749/datasets/d_0900fdcfdb4666fe2a630f37a532fc06/view) | Converted from KML to Shapefile                                         |
+|            |                                                                                                                                                             |                                                                         |
+|            | [Sample](https://datamall.lta.gov.sg/content/dam/datamall/datasets/PublicTransportRelated/PassengerVolumeByOriginDestinationBusStops.zip)                   |                                                                         |
++------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------+
+| sgp_simple | Derived                                                                                                                                                     | Merged elements in mpsz                                                 |
++------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------+
+| sgp_hexid  | Generated                                                                                                                                                   | Using st_make_grid. 375m from center of hexagon to edge perpendicularly |
++------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------+
+
+**Transport**
+
++-------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| Data              | Source                                                                                                                                                                                                     | Remarks                                                                                                            |
++===================+============================================================================================================================================================================================================+====================================================================================================================+
+| odbus202308       | *Passenger Volume By Origin Destination Bus Stops* from [LTA DataMall](https://datamall.lta.gov.sg/content/datamall/en/dynamic-data.html) via Postman                                                      | transport flow data for buses                                                                                      |
+|                   |                                                                                                                                                                                                            |                                                                                                                    |
+|                   | [Sample](https://datamall.lta.gov.sg/content/dam/datamall/datasets/PublicTransportRelated/PassengerVolumeByOriginDestinationBusStops.zip)                                                                  |                                                                                                                    |
++-------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| busstop           | *Bus Stop Location* from [LTA DataMall](https://datamall.lta.gov.sg/content/dam/datamall/datasets/Geospatial/BusStopLocation.zip)                                                                          | includes 5 johor busstops. missing 54 busstops in above trips dataset \~1.6% of trips                              |
++-------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| manualbusstop     | Sourced via [GoogleMaps](https://www.google.com/maps) & [LTA](https://www.lta.gov.sg/content/ltagov/en/map/bus.html#)                                                                                      | Added 24 stops to account \~ 1.6% of trips accounted for                                                           |
++-------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| sgbusinterchange  | Derived                                                                                                                                                                                                    | Filtering busstops to INT                                                                                          |
++-------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| trainpolygon_sf   | *Train Station* from [LTA DataMall](https://datamall.lta.gov.sg/content/dam/datamall/datasets/Geospatial/TrainStation.zip) + Edited                                                                        | Closed the polygons via QGIS. includes depot                                                                       |
++-------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| trainexitpoint_sf | *Train Station Exit Point* from [LTA DataMall](https://datamall.lta.gov.sg/content/dam/datamall/datasets/Geospatial/TrainStationExit.zip)                                                                  | includes station not in service                                                                                    |
++-------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+| trainstationmeta  | *Train Station Codes and Chinese Names* from [LTA DataMall](https://datamall.lta.gov.sg/content/dam/datamall/datasets/PublicTransportRelated/Train%20Station%20Codes%20and%20Chinese%20Names.zip) + Edited | find if station is interchange (same station name appear more than once) and how many lines go through the station |
++-------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+
+
+**Education**
+
++-----------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------------------------------------+
+| Data                  | Source                                                                                                                                                                   | Remarks                                                             |
++=======================+==========================================================================================================================================================================+=====================================================================+
+| newschoolread         | *General information of schools* from [data.gov.sg](https://beta.data.gov.sg/collections/457/datasets/d_688b934f82c1059ed0a6993d2a829089/view) + geocoded via OneMap API |                                                                     |
++-----------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------------------------------------+
+| schcategory           | Sourced via MOE website [SchoolFinder](https://www.moe.gov.sg/schoolfinder)                                                                                              | to distinguish between PRI, SEC, JC due to different travel pattern |
++-----------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------------------------------------+
+| schools_sf            | Derived from *newschoolread* & *schcategory*                                                                                                                             |                                                                     |
++-----------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------------------------------------+
+| privateinstitution_sf | *Private Education Institutions* from [data.gov.sg](https://beta.data.gov.sg/collections/1626/view)                                                                      | removed SIM, as it has been named as SUSS                           |
++-----------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------------------------------------+
+| tetiary_sf            | Sourced via MOE website [SchoolFinder](https://www.moe.gov.sg/schoolfinder) + [GoogleMaps](https://www.google.com/maps)                                                  | added in SUSS                                                       |
++-----------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------------------------------------+
+| preschool_sf          | *Pre-Schools Location* from [data.gov.sg](https://beta.data.gov.sg/collections/2064/view)                                                                                |                                                                     |
++-----------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------------------------------------+
+
+**Work**
+
+| Data        | Source        | Remarks |
+|-------------|---------------|---------|
+| finserv_sf  | from Prof Kam |         |
+| business_sf | from Prof Kam |         |
+
+**F&B, Entertainment, Tourism etc**
+
++------------------+------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------+
+| Data             | Source                                                                                                                                   | Remarks                                                                                                                            |
++==================+==========================================================================================================================================+====================================================================================================================================+
+| hawker_sf        | *List of Government Markets Hawker Centres* from [data.gov.sg](https://beta.data.gov.sg/collections/1385/view) + geocoded via OneMap API | could have used *Hawker Centres* from [data.gov.sg](https://beta.data.gov.sg/collections/1445/view). Although the list has #stalls |
++------------------+------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------+
+| entertainment_sf | from Prof Kam                                                                                                                            |                                                                                                                                    |
++------------------+------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------+
+| fnb_sf           | from Prof Kam                                                                                                                            |                                                                                                                                    |
++------------------+------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------+
+| tourism_sf       | *Tourist Attractions* from [data.gov.sg](https://beta.data.gov.sg/collections/1621/view)                                                 |                                                                                                                                    |
++------------------+------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------+
+| silverszone_sf   | *LTA Silver Zone* from [data.gov.sg](https://beta.data.gov.sg/collections/330/view)                                                      |                                                                                                                                    |
++------------------+------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------+
+| leisure_sf       | from Prof Kam                                                                                                                            |                                                                                                                                    |
++------------------+------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------+
+| retail_sf        | from Prof Kam                                                                                                                            |                                                                                                                                    |
++------------------+------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------+
+| eldercare_sf     | *Eldercare Services* from [data.gov.sg](https://beta.data.gov.sg/collections/714/view)                                                   |                                                                                                                                    |
++------------------+------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------+
+
+**Residential**
+
++----------------+-------------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------+
+| Data           | Source                                                                                                                              | Remarks                                                                          |
++================+=====================================================================================================================================+==================================================================================+
+| hotel_sf       | *Hotels* from [data.gov.sg](https://beta.data.gov.sg/collections/140/view)                                                          |                                                                                  |
++----------------+-------------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------+
+| uradwelling_sf | *URA No of Dwelling Units* from [data.gov.sg](https://beta.data.gov.sg/collections/1665/view)                                       | population derived using population census of av occupancy for each housing type |
++----------------+-------------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------+
+| hdb_sf         | HDB Property Information from [data.gov.sg](https://beta.data.gov.sg/collections/150/view) + Geocode via OneMap API + from prof kam | population derived using population census of av occupancy for each housing type |
++----------------+-------------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------+
+:::
+
+## **Basemaps**
+
+### **Singapore Outline**
+
+This is the basemap of Singapore gotten from data.gov.sg. This basemap comprise of small subzones. However, we will want to merge all into 1 singapore map. Upon the first merger the subzones seem to have some small overlap. Given our usecase, actually we don't need it to be so precise, so we can do a further simplication via st_simplify (note: this come at a cost of precision)
+
+
+```{r}
+#reading in the subzone
+mpsz <- st_read(dsn = "data/geospatial", layer = "MPSZ-2019") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414)
+
+#Merge all the polygons into 1
+sgp <- st_union(mpsz$geometry)
+
+# Simplify the geometry
+sgp_simple <- st_simplify(sgp, dTolerance = 100) %>% 
+  st_as_sf() %>%
+  st_transform(crs = 3414) %>%
+  st_make_valid()
+  
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_layout(main.title = "Singapore Basemap",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+
+### **Creating Base Hexagon**
+
+In addition, we know that people could walk to nearby busstops. Research has shown that [transport analysis zone](https://tmg.utoronto.ca/files/Reports/Traffic-Zone-Guidance_March-2021_Final.pdf) would be good to depict this, however that require extensive geographical disection e.g. to separate water body, housing from business etc and it could change from period to period due to changes in landuse. Therefore, we proxy this with analytic hexagon of 375m perpendicular distance between centre of the hexagon to and its edges.
+
+
+```{r}
+#note we need to use 750m because of the R function st_make_grid
+sgp_hex <- st_make_grid(sgp_simple,
+                       cellsize= 750,
+                       crs= 3414,
+                       what = "polygons", 
+                       square = FALSE)
+
+sgp_hexid <- sgp_hex %>%
+  st_as_sf() %>%
+  mutate(hex_id = paste0("HEX_",row_number()),
+         area = st_area(.))
+
+sgp_hexid$hex_id <- as.factor(sgp_hexid$hex_id)
+  
+st_geometry(sgp_hexid) <- "geometry"
+
+rm(sgp_hex,sgp)
+gc()
+
+#tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.2,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid)+
+  tm_polygons(col = "cyan", 
+              alpha = 0.2,
+              border.alpha = 0.1) +
+  tm_borders(alpha = 0.2)+
+  tm_layout(main.title = "Hexagon Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+tmap_mode("plot")
+```
+
+
+::: callout-save
+
+```{r}
+#| eval: false
+
+write_rds(sgp_simple, "data/rds/sgp_simple.rds")
+write_rds(sgp_hexid, "data/rds/sgp_hexid.rds")
+```
+
+:::
+
+## **Train Station Location**
+
+The downloaded data from LTA data mall has some issues where some polygons are not closed. There are 3 stations\
+1) Habourfront MRT Station- IMPT this is an interchange between circle and NE line\
+2) Upper Thomson MRT Station\
+3) [BOCC](https://landtransportguru.net/trapeze-common-fleet-management-system/seletar-bus-depot-interiors-7/)- this seem to be the Seletar Bus Depot which is not essential for commuters
+
+Given the importance of Habourfront MRT & Upper Thomson MRT, we have fixed it using QGIS, where we can first check for validity thereafter do a manual cleaning \[https://geoscience.blog/polygon-layer-cleaning-with-qgis/\]
+
+
+```{r}
+trainpolygon_sf <- st_read(dsn = "data/geospatial",
+                      layer = "mrt_fixed") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  unique() %>%
+  select(STN_NAM_DE, TYP_CD_DES) %>%
+  rename(stn_name = STN_NAM_DE)
+
+
+trainexitpoint_sf <- st_read(dsn = "data/geospatial",
+                      layer = "Train_Station_Exit_Layer") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  unique()
+
+#map_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(trainpolygon_sf)+
+  tm_polygons()+
+  tm_shape(trainexitpoint_sf)+
+  tm_dots(col= "purple")+
+  tm_layout(main.title = "Train Station Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+
+trainstationmeta <- read_csv("data/aspatial/Train Station Codes and Chinese Names.csv") %>%
+  select(stn_name, Interchange, Lines) %>%
+  unique() %>%
+  na.exclude()
+
+trainexitpoint_sf <- left_join(trainexitpoint_sf,trainstationmeta)
+trainpolygon_sf <- left_join(trainpolygon_sf,trainstationmeta)
+
+trainexitpoint_sf <- trainexitpoint_sf[!is.na(trainexitpoint_sf$Lines),]
+trainpolygon_sf <- trainpolygon_sf[!is.na(trainpolygon_sf$Lines),]
+```
+
+
+When we look at the maps above, we can see HUGE polygons that are not train staion but depot or control centre. These are not exactly the stations that we want. additionally, we also see there are some train station that are built but not in service yet. For this purpose we can also exclude them. There is a separate dataset from Data.gov.sg called "Train Station Codes and Chinese Names" that only show the active stations, thus we can use that to filter to the relevant station. Do note the below though
+
+1\) Woodlands South & Woodlands North has an extra space in the Train Station Code dataset that we did a simple cleaning before matching for\
+2) [Teck Lee LRT](https://landtransportguru.net/teck-lee-station/) is missing in the Train Station Code dataset, and it is not in service yet. \[[LTA](https://www.lta.gov.sg/content/ltagov/en/map/train.html#)\]\
+3)[Marina South MRT](https://www.lta.gov.sg/content/ltagov/en/upcoming_projects/rail_expansion/thomson_east_coast_line.html) Station is missing in the Train Station Code dataset and is not in service yet. Note it is different from Marina South Pier MRT Station!!
+
+Therefore, we can remove Teck Lee and Marina South
+
+
+```{r}
+#map_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(trainpolygon_sf)+
+  tm_polygons()+
+  tm_shape(trainexitpoint_sf)+
+  tm_dots(col= "purple")+
+  tm_layout(main.title = "Train Station Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+
+## **Bus Data**
+
+### **No. of Trips (Flow Data)**
+
+
+```{r}
+odbus202308 <- read_csv("data/aspatial/origin_destination_bus_202308.csv")
+glimpse(odbus202308)
+
+# Change all columns to factors
+odbus202308 <- data.frame(lapply(odbus202308, factor))
+odbus202308$TOTAL_TRIPS <- as.numeric(odbus202308$TOTAL_TRIPS)
+odbus202308$TIME_PER_HOUR <- as.numeric(odbus202308$TIME_PER_HOUR)
+```
+
+
+As per Take Home Exercise 1, we categorised the variables as factor apart from the total trips & time which will remain as numeric.
+
+The days are grouped together into 2 category of ***WEEKDAY*** or ***WEEKENDS/HOLIDAY*** and the timing is consolidated into 0-24, though interestingly Weekday 4am is not present, probably because there were no bus services operating on weekday at 4am. Check if trips data is unique returned TRUE. There are 0 records that are duplicated
+
+
+```{r}
+# Find the distinct values in each column
+distinct_values <- odbus202308 %>%
+  select(-TOTAL_TRIPS, -ORIGIN_PT_CODE, -DESTINATION_PT_CODE) %>%
+  distinct() %>%
+  arrange(PT_TYPE, YEAR_MONTH, DAY_TYPE, TIME_PER_HOUR)
+
+#datatable(distinct_values)
+kable(distinct_values)
+
+rm(distinct_values)
+
+```
+
+```{r}
+#| eval: false
+
+odbus202308_isunique <- isUnique(odbus202308)
+odbus202308_extractduplicatecount <- extractduplicatecount(odbus202308)
+```
+
+
+### **Bus Stops**
+
+From the flow data, we have trips from ***ORIGIN_PT_CODE*** to ***DESTINATION_PT_CODE***. however, that is a unique ID tagged to each busstop, but without the busstop metadata, we don't know where are these busstops. So we need to add in an additional data to plot the geographical location of each busstop.
+
+We see that busstop data is a point data with only 1 pair of XY coordinate per feature. ***BUS_STOP_N*** in the busstop data is a unique ID matching to that of ***ORIGIN_PT_CODE*** & ***DESTINATION_PT_CODE***. Thus lets apply the same transformation to make it into a category to allow matching of the trip data to the busstop location.
+
+Check if busstop data is unique returned TRUE. There are 0 records that are duplicated.
+
+
+```{r}
+busstop <- st_read(dsn = "data/geospatial",
+                   layer = "BusStop") %>%
+  st_transform(crs = 3414)
+
+kable(sample_n(busstop,25))
+
+busstop$BUS_STOP_N <- as.factor(busstop$BUS_STOP_N)
+busstop$BUS_ROOF_N <- as.factor(busstop$BUS_ROOF_N)
+```
+
+```{r}
+busstop_isunique <- isUnique(busstop)
+busstop_extractduplicatecount <- extractduplicatecount(busstop)
+```
+
+
+### **Layering Busstop with No. Trips**
+
+We should then first check there are busstops that are found in trips but don't have a busstop point mapped. This is more important because, it is possible for an existing busstop to have no demand, but not possible to have trips from a missing busstop. a) ***BUS_STOP_N*** from geometry data b) ***ORIGIN_PT_CODE*** from trips data
+
+
+```{r}
+missing_in_busstop_ORIGIN <- data.frame(setdiff(odbus202308$ORIGIN_PT_CODE,busstop$BUS_STOP_N)) %>% rename_at(1, ~'BUS_STOP_N')
+missing_in_busstop_DESTINATION <- data.frame(setdiff(odbus202308$DESTINATION_PT_CODE,busstop$BUS_STOP_N)) %>% 
+  rename_at(1, ~'BUS_STOP_N')
+missing_in_busstop_combined <- rbind(missing_in_busstop_ORIGIN,missing_in_busstop_DESTINATION) %>% unique() %>% 
+  arrange(BUS_STOP_N)
+
+origin_daytime <- odbus202308 %>%
+  group_by(DAY_TYPE,TIME_PER_HOUR,ORIGIN_PT_CODE) %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS))
+
+origin_only <- origin_daytime %>%
+  group_by(ORIGIN_PT_CODE) %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS))
+
+origin_total <- origin_only %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS),
+            TOTAL_STOPS = n_distinct(ORIGIN_PT_CODE))
+
+missing_in_busstop_trips <- left_join(missing_in_busstop_combined, origin_only
+                                      , by=c("BUS_STOP_N" = "ORIGIN_PT_CODE")) %>%
+  arrange(desc(TOTAL_TRIPS))
+
+missing_in_busstop_total <- missing_in_busstop_trips %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS),
+            TOTAL_STOPS = n_distinct(BUS_STOP_N))
+
+missing_stop1 <- missing_in_busstop_total %>% pull(TOTAL_STOPS)
+
+missing_stop_ratio1 <- sprintf("%.1f%%", missing_in_busstop_total %>% pull(TOTAL_STOPS) / origin_total %>% pull(TOTAL_STOPS)*100)
+
+missing_trip_ratio1 <- sprintf("%.1f%%", missing_in_busstop_total %>% pull(TOTAL_TRIPS) / origin_total %>% pull(TOTAL_TRIPS)*100)  
+```
+
+
+Upon inspection, there are 54 busstops that are not found with a geometry data point. They made up of \~1.6% of trips and 1.1% of bus stops. In particular, the top 2 observations 59009 and 47009 are Yishun & Woodlands Temp Interchange respectively and should be included. Thus i have made some manual input to find the location of some of these bussstops.
+
+Note: although woodlands regional bus interchange has started operation, there are a few bus services that continue to run from the temp bus interchange \[[LINK](https://landtransportguru.net/woodlands-temporary-bus-interchange/)\].
+
+
+```{r}
+#manualbusstop <- tibble(BUS_STOP_N = c('59009','47009'), lat = c(1.4278664,1.4375880), lon = #c(103.8361437,103.7865749), LOC_DESC = c('YISHUN BUS INT','WOODLANDS TEMP BUS INT'), BUS_ROOF_N=c('','')) 
+
+manualbusstop <- read.csv("data/aspatial/AdditionalBusStop.csv") %>%
+  mutate(BUS_STOP_N = sprintf("%05d",BUS_STOP_N))
+
+manualbusstop_geo2 <- st_as_sf(manualbusstop, coords = c("LONG","LAT"), crs = 4326) %>%
+  st_transform(crs = 3414) %>%
+  st_make_valid()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(manualbusstop_geo2)+
+  tm_dots(col="red",
+          size = 0.2)+  
+  tm_layout(main.title = "Manual Busstop Added",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+
+busstop2 <- rbind(busstop,manualbusstop_geo2) 
+
+missing_in_busstop_ORIGIN2 <- data.frame(setdiff(odbus202308$ORIGIN_PT_CODE,busstop2$BUS_STOP_N)) %>% rename_at(1, ~'BUS_STOP_N')
+missing_in_busstop_DESTINATION2 <- data.frame(setdiff(odbus202308$DESTINATION_PT_CODE,busstop2$BUS_STOP_N)) %>% 
+  rename_at(1, ~'BUS_STOP_N')
+missing_in_busstop_combined2 <- rbind(missing_in_busstop_ORIGIN2,missing_in_busstop_DESTINATION2) %>% unique() %>% 
+  arrange(BUS_STOP_N)
+
+missing_in_busstop_trips2 <- left_join(missing_in_busstop_combined2, origin_only
+                                      , by=c("BUS_STOP_N" = "ORIGIN_PT_CODE")) %>%
+  arrange(desc(TOTAL_TRIPS))
+
+missing_in_busstop_total2 <- missing_in_busstop_trips2 %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS),
+            TOTAL_STOPS = n_distinct(BUS_STOP_N))
+
+missing_stop2 <- missing_in_busstop_total2 %>% pull(TOTAL_STOPS)
+
+missing_stop_diff <- missing_in_busstop_total %>% pull(TOTAL_STOPS) - missing_in_busstop_total2 %>% pull(TOTAL_STOPS)
+
+missing_trip_diff <- missing_in_busstop_total %>% pull(TOTAL_TRIPS) - missing_in_busstop_total2 %>% pull(TOTAL_TRIPS)
+
+
+missing_stop_ratio2 <- sprintf("%.1f%%", missing_in_busstop_total2 %>% pull(TOTAL_STOPS) / origin_total %>% pull(TOTAL_STOPS)*100)
+
+missing_trip_ratio2 <- sprintf("%.1f%%", missing_in_busstop_total2 %>% pull(TOTAL_TRIPS) / origin_total %>% pull(TOTAL_TRIPS)*100)  
+
+missing_trip_ratio_diff <- sprintf("%.1f%%", missing_trip_diff / origin_total %>% pull(TOTAL_TRIPS)*100)  
+
+rm(busstop,mpsz,manualbusstop,manualbusstop_geo2, missing_in_busstop_combined, missing_in_busstop_combined2, missing_in_busstop_DESTINATION, missing_in_busstop_DESTINATION2, missing_in_busstop_ORIGIN, missing_in_busstop_ORIGIN2, missing_in_busstop_total, missing_in_busstop_total2, missing_in_busstop_trips, missing_in_busstop_trips2)
+gc()
+```
+
+
+After the update, there are 30 busstops that are not found with a geometry data point. They made up of \~0.1% of trips and 0.6% of bus stops. By just adding 24 stops, we are now accounting for \~1.5% more trips.
+
+Now lets simplify and only look at busstops in Singapore and plot where are the busstops as well as the bus interchange.
+
+
+```{r}
+# Find points that are in Singapore
+sgbusstop <- st_intersection(busstop2, sgp_simple)
+
+sgbusinterchange <- read_csv("data/aspatial/sgbusinterchange.csv") %>%
+  select(BUS_STOP_N)
+
+sgbusstop$Interchange <- ifelse(sgbusstop$BUS_STOP_N %in% sgbusinterchange$BUS_STOP_N,"Interchange","Busstop")
+
+# Find points that are not within Singapore
+johorbusstop <- busstop2[!busstop2$BUS_STOP_N %in%
+                          sgbusstop$BUS_STOP_N,]
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(sgbusstop)+
+  tm_dots()+
+  tm_shape(sgbusstop %>%
+             filter(Interchange == "Interchange"))+
+  tm_dots(col = "cyan",
+          size = 0.3)+
+  tm_layout(main.title = "Bus Stop & Bus Interchange Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+
+rm(sgbusinterchange, busstop2)
+```
+
+
+::: callout-tip
+**Save**
+
+
+```{r}
+#| eval: false
+
+write.csv(sgbusstop, file = 'data/aspatial/sgbusstop.csv')
+write_rds(sgbusstop, "data/rds/sgbusstop.rds")
+```
+
+:::
+
+### **Hexgon that are covering the busstops**
+
+
+```{r}
+busstop_withhex <- st_intersection(sgbusstop,sgp_hexid) %>%
+  select(-area)
+
+sgp_hexid_bs_df <- st_intersection(sgp_hexid,sgbusstop) %>%
+  data.frame() %>%
+  select(hex_id,BUS_STOP_N, LOC_DESC, Interchange)
+
+sgp_hexid_wbs_df <- sgp_hexid_bs_df %>%
+  group_by(hex_id) %>%
+  summarise(TOTAL_STOPS = n_distinct(BUS_STOP_N),
+            #TOTAL_INTERCHANGE = n_distinct(Interchange),
+            ALL_STOPS_ID = list(as.factor(BUS_STOP_N)),
+            ALL_STOPS_DESC = list(LOC_DESC))
+
+sgp_hexid_wbs_geo <- left_join(sgp_hexid,sgp_hexid_wbs_df) %>%
+  filter(TOTAL_STOPS > 0) %>%
+  select(-area)
+
+#tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_wbs_geo)+
+  tm_polygons(col="TOTAL_STOPS", 
+              alpha = 1,
+              border.alpha = 0.1,
+              title = "No. of Busstops",
+              popup.vars = c("Number of Busstops: " = "TOTAL_STOPS",
+                             #"Number of Interchange:" = "TOTAL_INTERCHANGE",
+                             "Busstops Description:" = "ALL_STOPS_DESC")) +
+  tm_borders(alpha = 0.2)+
+  tm_shape(sgbusstop %>%
+             filter(Interchange == "Interchange"))+
+  tm_dots(col = "cyan",
+          size = 0.1)+
+  tm_layout(main.title = "Busstops Distribution + Bus Interchange",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG",
+             position = c("left","bottom"))
+```
+
+
+::: callout-tip
+**Save**
+
+
+```{r}
+#| eval : false
+
+write_rds(sgp_hexid_wbs_geo, "data/rds/sgp_hexid_wbs_geo.rds")
+```
+
+:::
+
+### **Origin Destination Trips**
+
+We will like to analyse the high weekday morning peaks and where are people travelling to and from. Therefore we will filter the trips data to only that of weekday 6am to 9am. We can see that there are very popular origin & destination that have \>10,000 trips within the weekday morning peak. However, just by looking at the code, we don't know what are these locations. Thus we need to join in the data
+
+
+```{r}
+odbus202308_wdmp <- odbus202308 %>%
+  filter(DAY_TYPE == "WEEKDAY") %>%
+  filter( TIME_PER_HOUR >= 6 &
+            TIME_PER_HOUR <= 9
+          ) %>%
+  group_by(ORIGIN_PT_CODE, DESTINATION_PT_CODE) %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS)) %>%
+  unique()
+
+kable(head(odbus202308_wdmp %>%
+       arrange(-TOTAL_TRIPS)))
+
+```
+
+
+After joining the busstop name, we can see that the most popular trips are made from Checkpoint to MRT as well as from various locations to the train station / bus interchange
+
+
+```{r}
+odbus202308_wdmp_hex <- odbus202308_wdmp %>%
+  inner_join(busstop_withhex %>%
+               data.frame() %>%
+               select(BUS_STOP_N, LOC_DESC, hex_id),
+             by = c("ORIGIN_PT_CODE" = "BUS_STOP_N")) %>%
+  rename(ORIG_HEX_ID = hex_id,
+         ORIG_BUSSTOPS = LOC_DESC) %>%
+  inner_join(busstop_withhex %>%
+               data.frame() %>%
+               select(BUS_STOP_N, LOC_DESC, hex_id),
+             by = c("DESTINATION_PT_CODE" = "BUS_STOP_N")) %>%
+  rename(DEST_HEX_ID = hex_id,
+         DEST_BUSSTOPS = LOC_DESC) %>%
+  select(ORIGIN_PT_CODE, DESTINATION_PT_CODE,TOTAL_TRIPS,ORIG_BUSSTOPS,ORIG_HEX_ID,DEST_BUSSTOPS,DEST_HEX_ID) %>%
+  unique()
+
+odbus202308_wdmp_hex %>%
+  select(ORIG_BUSSTOPS, DEST_BUSSTOPS, TOTAL_TRIPS,ORIGIN_PT_CODE,DESTINATION_PT_CODE) %>%
+  arrange(-TOTAL_TRIPS) %>%
+  filter(TOTAL_TRIPS > 10000) %>%
+  kable()
+```
+
+```{r}
+rm(odbus202308,odbus202308_wdmp,origin_daytime,origin_only,origin_total)
+gc()
+```
+
+
+Lets now summarise the data into the analytical hexagons and generate the flow data
+
+
+```{r}
+hex_trip_df <- odbus202308_wdmp_hex %>%
+  group_by(ORIG_HEX_ID,DEST_HEX_ID) %>%
+  summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS)) %>%
+  inner_join(sgp_hexid_wbs_df %>%
+               select(hex_id, TOTAL_STOPS, ALL_STOPS_DESC),
+             by = c("ORIG_HEX_ID" = "hex_id")) %>%
+  rename(ORIG_TOTAL_STOPS = TOTAL_STOPS,
+         ORIG_ALL_STOPS_DESC = ALL_STOPS_DESC) %>%
+  inner_join(sgp_hexid_wbs_df %>%
+               select(hex_id, TOTAL_STOPS, ALL_STOPS_DESC),
+             by = c("DEST_HEX_ID" = "hex_id")) %>%
+  rename(DEST_TOTAL_STOPS = TOTAL_STOPS,
+         DEST_ALL_STOPS_DESC = ALL_STOPS_DESC) %>%
+  unique() %>%
+  mutate(OD = paste(ORIG_HEX_ID,DEST_HEX_ID,sep = " to ")) %>%
+  arrange(-TOTAL_TRIPS)
+  #select(OD,TOTAL_TRIPS,everything())
+
+kable(head(hex_trip_df))
+
+```
+
+```{r}
+flowlines <- od2line(flow = hex_trip_df,
+                     zones = sgp_hexid_wbs_geo,
+                     zone_code = "hex_id") %>%
+  st_make_valid() %>%
+  select(OD,TOTAL_TRIPS,everything())
+```
+
+
+::: callout-tip
+**Save**
+
+
+```{r}
+#| eval: false
+
+write_rds(flowlines, "data/rds/flowlines.rds")
+```
+
+:::
+
+### **Visualising the Data**
+
+#### **Transport Nodes**
+
+
+```{r}
+#tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.2,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_wbs_geo)+
+  tm_polygons(col="TOTAL_STOPS", 
+              alpha = 0.2,
+              border.alpha = 0.1,
+              title = "No. of Busstops",
+              popup.vars = c("Number of Busstops: " = "TOTAL_STOPS",
+                             "Busstops Description:" = "ALL_STOPS_DESC")
+              ) +
+  tm_shape(trainpolygon_sf)+
+  tm_polygons(alpha = 0.2)+
+  tm_shape(trainexitpoint_sf)+
+  tm_dots(col = "purple",
+          size= 0.06)+
+  tm_shape(sgbusstop %>%
+             filter(Interchange == "Interchange"))+
+  tm_dots(col = "cyan",
+          size = 0.03)+
+  tm_layout(main.title = "Transport Node Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+tmap_mode("plot")
+```
+
+
+## Transport Flow
+
+We can see a congregation of flow largely towards the MRT station. When we aggregate over a hexagonal area instead of just individual busstop. The largest trip is no longer from Checkpoint to the various nearby MRT station, although still significant
+
+Yishun MRT seem to be a popular location that people are going to in the morning. This is likely due to
+
+
+```{r}
+topflow <- flowlines %>%
+  filter(TOTAL_TRIPS > 10000)
+```
+
+```{r}
+#tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.1,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_wbs_geo)+
+  tm_polygons(
+              #col="TOTAL_STOPS", 
+              alpha = 0.04,
+              border.alpha = 0.1,
+              title = "No. of Busstops",
+              popup.vars = c("Number of Busstops: " = "TOTAL_STOPS",
+                             "Busstops Description:" = "ALL_STOPS_DESC")
+              ) +
+  tm_shape(topflow)+
+  tm_lines(lwd = "TOTAL_TRIPS",
+           alpha = 0.4,
+           col = "green",
+           scale = c(0.1, 0.5, 1, 3, 5, 7, 9, 13, 17, 19),
+           )+
+  tm_shape(trainpolygon_sf)+
+  tm_polygons(alpha = 0.2)+
+  tm_shape(trainexitpoint_sf)+
+  tm_dots(col = "purple",
+          size= 0.06,
+          alpha = 0.2)+
+  tm_shape(sgbusstop %>%
+             filter(Interchange == "Interchange"))+
+  tm_dots(col = "cyan",
+          size = 0.08,
+          alpha = 0.2)+
+  tm_layout(main.title = "Bus Trips for Weekdays 6-9AM (2023 Aug)",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+tmap_mode("plot")
+```
+
+```{r}
+tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.1,
+              border.alpha = 0.4)+
+  tm_shape(sgp_hexid_wbs_geo)+
+  tm_polygons(
+              #col="TOTAL_STOPS", 
+              alpha = 0.04,
+              border.alpha = 0.1,
+              title = "No. of Busstops",
+              popup.vars = c("Number of Busstops: " = "TOTAL_STOPS",
+                             "Busstops Description:" = "ALL_STOPS_DESC")
+              ) +
+  tm_shape(topflow)+
+  tm_lines(lwd = "TOTAL_TRIPS",
+           alpha = 0.4,
+           col = "green",
+           scale = c(0.1, 0.5, 1, 3, 5, 7, 9, 13, 17, 19),
+           )+
+  tm_shape(trainpolygon_sf)+
+  tm_polygons(alpha = 0.2)+
+  tm_shape(trainexitpoint_sf)+
+  tm_dots(col = "purple",
+          size= 0.06,
+          alpha = 0.2)+
+  tm_shape(sgbusstop %>%
+             filter(Interchange == "Interchange"))+
+  tm_dots(col = "cyan",
+          size = 0.08,
+          alpha = 0.2)+
+  tm_layout(main.title = "Bus Trips for Weekdays 6-9AM (2023 Aug)",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+tmap_mode("plot")
+```
+
+
+## **Attributes**
+
+1.  no. of busstops (push & pull)
+2.  no of MRT exit (push & pull) - kind of proxy for how crowded this place is, e.g. raffles place has X exits because they serve a big population for work
+3.  BUS Interchange - (push & pull)
+4.  MRT Interchange - (push & pull)
+5.  Preschool - pull but likely low, because pre-schoolers usually dont take public transport. it is generally near to home. Otherwise, it could be explaning for proximity to amenities or workplace
+6.  PrimarySchool - pull, but likely low. especially if the kids are in lower primary. can also refer to extract from population census, they generally don't take bus
+7.  SecondarySchool - pull
+8.  JC - pull
+9.  Tetiary Education (don't think they matter for morning peak) like ITE, Poly, Uni - pull but lower effect due to staggered starting time
+10. Business - pull
+11. F&B - likely low impact because F&B location generally don't open so early. apart from hawker centre, which people might go nearby to eat before going to work/school? (push???) seldom do we see people taking public transport to specific F&B before work/school. likely more so it is near to their home/destination
+12. population - push
+13. fin service - pull
+14. landed area - interesting to see if landed matters
+15. retail - pull? likely not much impact?
+
+
+```{r}
+#| eval: false
+
+url <- "https://www.onemap.gov.sg/api/common/elastic/search"
+
+csv <- read_csv("data/aspatial/Generalinformationofschools.csv")
+
+#this is saving the postal_code separately as a list
+postcodes <- csv$`postal_code`
+
+
+#initialisation, empty dataframe
+found <- data.frame()
+not_found <- data.frame()
+
+
+for (postcode in postcodes){
+  query <- list('searchVal'=postcode, 'returnGeom' = 'Y', 'getAddrDetails' = 'Y', 'pageNum' = '1')
+  res <- GET(url, query=query)
+  
+  if((content(res)$found) != 0){
+    found <- rbind(found,data.frame(content(res))[4:13])
+  } else {
+    not_found = data.frame(postcode)
+  }
+}
+```
+
+```{r}
+#| eval: false
+
+merged = merge(csv, found, by.x = 'postal_code', by.y = 'results.POSTAL', all = TRUE)
+write.csv(merged, file = 'data/aspatial/schools.csv')
+write.csv(not_found, file = "data/aspatial/not_found.csv")
+```
+
+```{r}
+newschoolread <- read_csv("data/aspatial/schools_updated.csv") %>%
+  rename(longtitude = results.LONGITUDE,
+         latitude = results.LATITUDE) %>%
+  select(school_name, longtitude, latitude) %>%
+  unique()
+
+schcategory <- read_csv("data/aspatial/SchoolCategory.csv")
+
+newschoolread2 <- left_join(newschoolread,schcategory)
+rm(newschoolread,schcategory)
+
+```
+
+```{r}
+schools_sf <- st_as_sf(newschoolread2,
+                       coords = c("longtitude","latitude"),
+                       crs = 4326
+                       ) %>%
+  st_transform(crs = 3414) %>%
+  st_make_valid()
+
+prisch_sf <- schools_sf %>%
+  filter(level == "PRIMARY")
+
+secjcsch_sf <- schools_sf %>%
+  filter(level != "PRIMARY")
+
+rm(newschoolread2)
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(schools_sf)+
+  tm_dots(col =  "level")+
+  #tm_shape(prisch_sf)+
+  #tm_dots(col =  "lightblue")+
+  #tm_shape(secjcsch_sf)+
+  #tm_dots(col =  "black")+
+  tm_layout(main.title = "Primary, Secondary, JC Schools Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+
+```
+
+```{r}
+
+privateinstitution_sf <- st_read(dsn = "data/geospatial",
+                      layer = "PrivateEducationInstitutions") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(NAME_OF_SC,POSTALCODE,STREETNAME) %>%
+  filter(NAME_OF_SC != "SINGAPORE INSTITUTE OF MANAGEMENT") %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(privateinstitution_sf)+
+  tm_dots()+
+  tm_layout(main.title = "Private Education Institution Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+```{r}
+
+tetiary <- read_csv("data/aspatial/TetiaryEducation.csv")
+
+tetiary_sf <- st_as_sf(tetiary,
+                       coords = c("Long","Lat"),
+                       crs = 4326
+                       ) %>%
+  st_transform(crs = 3414) %>%
+  st_make_valid() %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(tetiary_sf)+
+  tm_dots(col = "Type",
+          size = 0.5)+
+  tm_layout(main.title = "Tetiary Education Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+
+rm(tetiary)
+```
+
+```{r}
+
+preschool_sf <- st_read(dsn = "data/geospatial",
+                      layer = "PreSchoolsLocation-point") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(preschool_sf)+
+  tm_dots()+
+  tm_layout(main.title = "PreSchool Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+
+### FOOD & ENTERTAINMENT
+
+
+```{r}
+#| eval: false
+
+url <- "https://www.onemap.gov.sg/api/common/elastic/search"
+
+csv <- read_csv("data/aspatial/ListofGovernmentMarketsHawkerCentres.csv")
+
+#this is saving the postal_code separately as a list
+postcodes <- csv$`postalcode`
+
+
+#initialisation, empty dataframe
+found <- data.frame()
+not_found <- data.frame()
+
+
+for (postcode in postcodes){
+  query <- list('searchVal'=postcode, 'returnGeom' = 'Y', 'getAddrDetails' = 'Y', 'pageNum' = '1')
+  res <- GET(url, query=query)
+  
+  if((content(res)$found) != 0){
+    found <- rbind(found,data.frame(content(res))[4:13])
+  } else {
+    not_found = data.frame(postcode)
+  }
+}
+```
+
+```{r}
+#| eval: false
+
+merged = merge(csv, found, by.x = 'postalcode', by.y = 'results.POSTAL', all = TRUE)
+write.csv(merged, file = 'data/aspatial/hawker.csv')
+write.csv(not_found, file = "data/aspatial/hakwer_notfound.csv")
+```
+
+```{r}
+newhawker <- read_csv("data/aspatial/hawker_updated.csv") %>%
+  rename(longtitude = results.LONGITUDE,
+         latitude = results.LATITUDE,
+         postal_code = postalcode) %>%
+  select(name_of_centre,
+         no_of_stalls, 
+         no_of_cooked_food_stalls, 
+         no_of_mkt_produce_stalls, 
+         longtitude, 
+         latitude) %>%
+  unique()
+
+hawker_sf <- st_as_sf(newhawker,
+                       coords = c("longtitude","latitude"),
+                       crs = 4326
+                       ) %>%
+  st_transform(crs = 3414) %>%
+  st_make_valid()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(hawker_sf)+
+  tm_dots(col =  "no_of_stalls",
+          palette = "Reds",
+          size = 0.2)+
+  tm_layout(main.title = "Hawker Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+  
+  rm(newhawker)
+```
+
+```{r}
+
+entertainment_sf <- st_read(dsn = "data/geospatial",
+                      layer = "entertn") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(POI_NAME) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(entertainment_sf)+
+  tm_dots()+
+  tm_layout(main.title = "Entertainment Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+```{r}
+
+fnb_sf <- st_read(dsn = "data/geospatial",
+                      layer = "F&B") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(POI_NAME) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(fnb_sf)+
+  tm_dots()+
+  tm_layout(main.title = "F&B Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+```{r}
+
+tourism_sf <- st_read(dsn = "data/geospatial",
+                      layer = "TOURISM") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(PAGETITLE) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(tourism_sf)+
+  tm_dots()+
+  tm_layout(main.title = "Toursim Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+```{r}
+
+silverszone_sf <- st_read(dsn = "data/geospatial",
+                      layer = "Silverzone_Updated") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(SITENAME) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(silverszone_sf)+
+  tm_polygons()+
+  tm_layout(main.title = "Silverzone Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+```{r}
+
+leisure_sf <- st_read(dsn = "data/geospatial",
+                      layer = "Liesure&Recreation") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(POI_NAME) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(leisure_sf)+
+  tm_dots()+
+  tm_layout(main.title = "Leisure Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+```{r}
+
+retail_sf <- st_read(dsn = "data/geospatial",
+                      layer = "Retails") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(POI_NAME) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(retail_sf)+
+  tm_dots()+
+  tm_layout(main.title = "Retail Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+
+### WORK
+
+
+```{r}
+
+finserv_sf <- st_read(dsn = "data/geospatial",
+                      layer = "FinServ") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(POI_NAME) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(finserv_sf)+
+  tm_dots()+
+  tm_layout(main.title = "Financial Service Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+```{r}
+
+eldercare_sf <- st_read(dsn = "data/geospatial",
+                      layer = "ELDERCARE") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(NAME) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(eldercare_sf)+
+  tm_dots()+
+  tm_layout(main.title = "Eldercare Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+```{r}
+
+business_sf <- st_read(dsn = "data/geospatial",
+                      layer = "Business") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(POI_NAME) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(business_sf)+
+  tm_dots()+
+  tm_layout(main.title = "Business Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+
+### RESIDENTIAL
+
+
+```{r}
+
+hotel_sf <- st_read(dsn = "data/geospatial",
+                      layer = "HotelLocations-point") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(Name, TOTALROOMS) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(hotel_sf)+
+  tm_dots()+
+  tm_layout(main.title = "Hotel Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+```{r}
+
+uradwelling_sf <- st_read(dsn = "data/geospatial",
+                      layer = "URANoofDwellingUnits") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(POSTALCODE,PROJ_NAME,PROP_TYPE,DU) %>%
+  mutate(DU = as.numeric(DU),
+         PROP_TYPE = as.factor(PROP_TYPE),
+         population = round(ifelse(PROP_TYPE== "Landed",4.4,3.3) * DU )
+         ) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(uradwelling_sf)+
+  tm_dots(col="population")+
+  tm_layout(main.title = "URA Dwelling Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+```{r}
+#| eval: false
+
+url <- "https://www.onemap.gov.sg/api/common/elastic/search"
+
+hdb_raw <- read_csv("data/aspatial/hdb_tofind.csv") %>%
+  mutate(searchname = paste(blk_no,street, sep = " "))
+
+
+#initialisation, empty dataframe
+found <- data.frame()
+not_found <- data.frame()
+
+
+for (searchna in hdb_raw$searchname){
+  query <- list('searchVal'=searchna, 'returnGeom' = 'Y', 'getAddrDetails' = 'Y', 'pageNum' = '1')
+  res <- GET(url, query=query)
+  
+  if((content(res)$found) != 0){
+    found <- rbind(found,data.frame(content(res))[4:13])
+  } else {
+    not_found = data.frame(searchna)
+    found <- rbind(found,"")
+  }
+}
+```
+
+```{r}
+#| eval: false
+merged <- cbind(hdb_raw,found)
+write.csv(merged, file = 'data/aspatial/hdb_tofind_updated.csv')
+write.csv(found, file = 'data/aspatial/hdb_found.csv')
+write.csv(not_found, file = "data/aspatial/hdb_notfound.csv")
+```
+
+
+thereafter we combine our searched result with prof's prepared hdb dataset. There's one block that was not found earlier that was 141A Serangoon North Avenue 2. However that's a multistorey carpark and is not too critical, even though we have added that in for completeness
+
+
+```{r}
+newhdb <- read_csv("data/aspatial/hdb_updated.csv") %>%
+  mutate(population = round(
+           `1room_sold` * 2.1+
+           `2room_sold` * 2.1+
+           `3room_sold` * 2.5+
+           `4room_sold` * 3.3+
+           `5room_sold` * 3.7+
+           `exec_sold` * 3.7+
+           `multigen_sold` * 3.7+
+           `studio_apartment_sold`*2.1+
+           `1room_rental` * 2.1+
+           `2room_rental` * 2.1+
+           `3room_rental` * 2.5+
+           `other_room_rental` * 3.3)) %>%
+  filter(population > 0) %>%
+  select(addr, postal,population, max_floor_lvl, total_dwelling_units, lng, lat) %>%
+  unique()
+
+hdb_sf <- st_as_sf(newhdb,
+                   coords = c("lng","lat"),
+                   crs = 4326
+                   ) %>%
+  st_transform(crs = 3414) %>%
+  st_make_valid()
+
+#tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(hdb_sf)+
+  tm_dots(col =  "population",
+          palette = "Reds")+
+  tm_layout(main.title = "HDB Block Population Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+  
+  rm(newhdb)
+  gc()
+```
+
