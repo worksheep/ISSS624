@@ -24,7 +24,7 @@ To visualise and try to understand the flow of commuters in the Weekday Morning 
 
 ## **Setting Up the Environment**
 
-### Packages
+### **Packages**
 
 To aid us in the analysis, we are using R and the associated packages. We set the stage by loading them into the environment as below
 
@@ -42,7 +42,7 @@ To aid us in the analysis, we are using R and the associated packages. We set th
 pacman::p_load(tmap, sf, tidyverse, sfdep, knitr, plotly, DT, lubridate, magick, httr, stplanr)
 ```
 
-### Reusable Functions
+### **Reusable Functions**
 
 In addition, we check for duplicates fairly often, thus we can make it into a function for reuseability
 
@@ -66,7 +66,7 @@ extractduplicatecount <- function(v){
 
 ```
 
-## Dataset Used
+## **Dataset Used**
 
 ::: panel-tabset
 **Basemap**
@@ -277,7 +277,10 @@ trainpolygon_sf <- st_read(dsn = "data/geospatial",
   st_transform(crs = 3414) %>%
   unique() %>%
   select(STN_NAM_DE, TYP_CD_DES) %>%
-  rename(stn_name = STN_NAM_DE)
+  rename(stn_name = STN_NAM_DE) %>%
+  group_by(stn_name, TYP_CD_DES) %>%
+  summarise(geometry = st_union(geometry)) %>%
+  ungroup()
 
 
 trainexitpoint_sf <- st_read(dsn = "data/geospatial",
@@ -309,7 +312,7 @@ tm_shape(sgp_simple)+
   tm_view(set.zoom.limits = c(11,16))
 
 trainstationmeta <- read_csv("data/aspatial/Train Station Codes and Chinese Names.csv") %>%
-  select(stn_name, Interchange, Lines) %>%
+  select(stn_name, Interchange, Lines,LRT) %>%
   unique() %>%
   na.exclude()
 
@@ -423,8 +426,7 @@ We should then first check there are busstops that are found in trips but don't 
 missing_in_busstop_ORIGIN <- data.frame(setdiff(odbus202308$ORIGIN_PT_CODE,busstop$BUS_STOP_N)) %>% rename_at(1, ~'BUS_STOP_N')
 missing_in_busstop_DESTINATION <- data.frame(setdiff(odbus202308$DESTINATION_PT_CODE,busstop$BUS_STOP_N)) %>% 
   rename_at(1, ~'BUS_STOP_N')
-missing_in_busstop_combined <- rbind(missing_in_busstop_ORIGIN,missing_in_busstop_DESTINATION) %>% unique() %>% 
-  arrange(BUS_STOP_N)
+missing_in_busstop_combined <- rbind(missing_in_busstop_ORIGIN,missing_in_busstop_DESTINATION) %>% unique() 
 
 origin_daytime <- odbus202308 %>%
   group_by(DAY_TYPE,TIME_PER_HOUR,ORIGIN_PT_CODE) %>%
@@ -439,8 +441,7 @@ origin_total <- origin_only %>%
             TOTAL_STOPS = n_distinct(ORIGIN_PT_CODE))
 
 missing_in_busstop_trips <- left_join(missing_in_busstop_combined, origin_only
-                                      , by=c("BUS_STOP_N" = "ORIGIN_PT_CODE")) %>%
-  arrange(desc(TOTAL_TRIPS))
+                                      , by=c("BUS_STOP_N" = "ORIGIN_PT_CODE"))
 
 missing_in_busstop_total <- missing_in_busstop_trips %>%
   summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS),
@@ -492,12 +493,10 @@ busstop2 <- rbind(busstop,manualbusstop_geo2)
 missing_in_busstop_ORIGIN2 <- data.frame(setdiff(odbus202308$ORIGIN_PT_CODE,busstop2$BUS_STOP_N)) %>% rename_at(1, ~'BUS_STOP_N')
 missing_in_busstop_DESTINATION2 <- data.frame(setdiff(odbus202308$DESTINATION_PT_CODE,busstop2$BUS_STOP_N)) %>% 
   rename_at(1, ~'BUS_STOP_N')
-missing_in_busstop_combined2 <- rbind(missing_in_busstop_ORIGIN2,missing_in_busstop_DESTINATION2) %>% unique() %>% 
-  arrange(BUS_STOP_N)
+missing_in_busstop_combined2 <- rbind(missing_in_busstop_ORIGIN2,missing_in_busstop_DESTINATION2) %>% unique()
 
 missing_in_busstop_trips2 <- left_join(missing_in_busstop_combined2, origin_only
-                                      , by=c("BUS_STOP_N" = "ORIGIN_PT_CODE")) %>%
-  arrange(desc(TOTAL_TRIPS))
+                                      , by=c("BUS_STOP_N" = "ORIGIN_PT_CODE"))
 
 missing_in_busstop_total2 <- missing_in_busstop_trips2 %>%
   summarise(TOTAL_TRIPS = sum(TOTAL_TRIPS),
@@ -629,7 +628,7 @@ tm_shape(sgp_simple)+
 **Save**
 
 ```{r}
-#| eval : false
+#|eval : false
 
 write_rds(sgp_hexid_wbs_geo, "data/rds/sgp_hexid_wbs_geo.rds")
 ```
@@ -650,11 +649,11 @@ odbus202308_wdmp <- odbus202308 %>%
   unique()
 
 kable(head(odbus202308_wdmp %>%
-       arrange(-TOTAL_TRIPS)))
+       arrange(desc(TOTAL_TRIPS))))
 
 ```
 
-After joining the busstop name, we can see that the most popular trips are made from Checkpoint to MRT as well as from various locations to the train station / bus interchange
+After joining the busstop name, we can see that the most popular trips are made from Checkpoint to MRT as well as from various locations to the train station / bus interchange. Do note that after joining the trip data with the busstop data, there is a reduction in no. of records. this is due to the earlier established difference where 0.1% of the trips will not be matched due to a lack of busstop data.
 
 ```{r}
 odbus202308_wdmp_hex <- odbus202308_wdmp %>%
@@ -675,7 +674,7 @@ odbus202308_wdmp_hex <- odbus202308_wdmp %>%
 
 odbus202308_wdmp_hex %>%
   select(ORIG_BUSSTOPS, DEST_BUSSTOPS, TOTAL_TRIPS,ORIGIN_PT_CODE,DESTINATION_PT_CODE) %>%
-  arrange(-TOTAL_TRIPS) %>%
+  arrange(desc(TOTAL_TRIPS)) %>%
   filter(TOTAL_TRIPS > 10000) %>%
   kable()
 ```
@@ -703,7 +702,8 @@ hex_trip_df <- odbus202308_wdmp_hex %>%
          DEST_ALL_STOPS_DESC = ALL_STOPS_DESC) %>%
   unique() %>%
   mutate(OD = paste(ORIG_HEX_ID,DEST_HEX_ID,sep = " to ")) %>%
-  arrange(-TOTAL_TRIPS)
+  arrange(desc(TOTAL_TRIPS))
+#%>%
   #select(OD,TOTAL_TRIPS,everything())
 
 kable(head(hex_trip_df))
@@ -770,18 +770,21 @@ tm_shape(sgp_simple)+
 tmap_mode("plot")
 ```
 
-## Transport Flow
+#### **Transport Flow**
 
 We can see a congregation of flow largely towards the MRT station. When we aggregate over a hexagonal area instead of just individual busstop. The largest trip is no longer from Checkpoint to the various nearby MRT station, although still significant
 
-Yishun MRT seem to be a popular location that people are going to in the morning. This is likely due to
+The biggest trend will be commuters going towards and away from area with MRT. This is especially pronounced in area high in residential and with MRT e.g. Yishun (HEX_1887), Woodlands Area (HEX_1510). Other areas that display similar traits are Chua Chu Kang, Bukit Panjang, Boonlay, Lakeside, Jurong East, Clementi, Serangoon, Tiong Bahru, Ang Mo Kio, Bedok, Tampines, Punggol, Sengkang, Buangkok
+
+Apart from these regional centres, there is a particular long distance link from Compassvale (HEX_2424) to Woodlands (HEX_1510) This could be due to the availability of direct bus service like 161 & 965 and no direct MRT service that allow commuters to cross from northeastern to northern Singapore easily.
 
 ```{r}
 topflow <- flowlines %>%
-  filter(TOTAL_TRIPS > 10000)
-```
+  data.frame() %>%
+  filter(TOTAL_TRIPS > 10000) %>%
+  arrange(desc(TOTAL_TRIPS)) %>%
+  st_as_sf()
 
-```{r}
 #tmap_mode("view")
 tm_shape(sgp_simple)+
   tm_polygons(col="white", 
@@ -829,6 +832,8 @@ tmap_mode("plot")
 ```
 
 ```{r}
+#| eval : false
+
 tmap_mode("view")
 tm_shape(sgp_simple)+
   tm_polygons(col="white", 
@@ -875,23 +880,183 @@ tm_shape(sgp_simple)+
 tmap_mode("plot")
 ```
 
-## **Attributes**
+### **Implication**
+
+Depending on how Singapore intend to grow the Northern / Northeastern sector (e.g. [SIT moving to Punggol](https://www.singaporetech.edu.sg/about/future-campus/punggol-campus)), if there are sufficient demand with the build up of this regional centre, it could be possible to consider a short north shore MRT line to link up Punggol and Woodlands area to serve the demand that is currently met by Bus.
+
+## **What affects the Morning Peak Trips?**
+
+### **Initial Thinking**
 
 1.  no. of busstops (push & pull)
 2.  no of MRT exit (push & pull) - kind of proxy for how crowded this place is, e.g. raffles place has X exits because they serve a big population for work
 3.  BUS Interchange - (push & pull)
 4.  MRT Interchange - (push & pull)
-5.  Preschool - pull but likely low, because pre-schoolers usually dont take public transport. it is generally near to home. Otherwise, it could be explaning for proximity to amenities or workplace
-6.  PrimarySchool - pull, but likely low. especially if the kids are in lower primary. can also refer to extract from population census, they generally don't take bus
-7.  SecondarySchool - pull
-8.  JC - pull
-9.  Tetiary Education (don't think they matter for morning peak) like ITE, Poly, Uni - pull but lower effect due to staggered starting time
-10. Business - pull
-11. F&B - likely low impact because F&B location generally don't open so early. apart from hawker centre, which people might go nearby to eat before going to work/school? (push???) seldom do we see people taking public transport to specific F&B before work/school. likely more so it is near to their home/destination
-12. population - push
-13. fin service - pull
-14. landed area - interesting to see if landed matters
-15. retail - pull? likely not much impact?
+5.  population - push
+6.  Preschool - pull but likely low, because pre-schoolers usually dont take public transport. it is generally near to home. Otherwise, it could be explaning for proximity to amenities or workplace
+7.  PrimarySchool - pull, but likely low. especially if the kids are in lower primary. can also refer to extract from population census, they generally don't take bus
+8.  SecondarySchool - pull
+9.  JC - pull
+10. Tetiary Education (don't think they matter for morning peak) like ITE, Poly, Uni - pull but lower effect due to staggered starting time
+11. retail - pull? likely not much impact?
+12. Business - pull
+13. F&B - likely low impact because F&B location generally don't open so early. apart from hawker centre, which people might go nearby to eat before going to work/school? (push???) seldom do we see people taking public transport to specific F&B before work/school. likely more so it is near to their home/destination
+14. fin service - pull
+15. landed area - interesting to see if landed matters
+
+### **Residential**
+
+```{r}
+
+hotel_sf <- st_read(dsn = "data/geospatial",
+                      layer = "HotelLocations-point") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(Name, TOTALROOMS) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(hotel_sf)+
+  tm_dots()+
+  tm_layout(main.title = "Hotel Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+```{r}
+
+uradwelling_sf <- st_read(dsn = "data/geospatial",
+                      layer = "URANoofDwellingUnits") %>%
+  st_make_valid() %>%
+  st_transform(crs = 3414) %>%
+  select(POSTALCODE,PROJ_NAME,PROP_TYPE,DU) %>%
+  mutate(DU = as.numeric(DU),
+         PROP_TYPE = as.factor(PROP_TYPE),
+         population = round(ifelse(PROP_TYPE== "Landed",4.4,3.3) * DU )
+         ) %>%
+  unique()
+
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(uradwelling_sf)+
+  tm_dots(col="population")+
+  tm_layout(main.title = "URA Dwelling Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+```
+
+```{r}
+#| eval: false
+
+url <- "https://www.onemap.gov.sg/api/common/elastic/search"
+
+hdb_raw <- read_csv("data/aspatial/hdb_tofind.csv") %>%
+  mutate(searchname = paste(blk_no,street, sep = " "))
+
+
+#initialisation, empty dataframe
+found <- data.frame()
+not_found <- data.frame()
+
+
+for (searchna in hdb_raw$searchname){
+  query <- list('searchVal'=searchna, 'returnGeom' = 'Y', 'getAddrDetails' = 'Y', 'pageNum' = '1')
+  res <- GET(url, query=query)
+  
+  if((content(res)$found) != 0){
+    found <- rbind(found,data.frame(content(res))[4:13])
+  } else {
+    not_found = data.frame(searchna)
+    found <- rbind(found,"")
+  }
+}
+```
+
+```{r}
+#| eval: false
+merged <- cbind(hdb_raw,found)
+write.csv(merged, file = 'data/aspatial/hdb_tofind_updated.csv')
+write.csv(found, file = 'data/aspatial/hdb_found.csv')
+write.csv(not_found, file = "data/aspatial/hdb_notfound.csv")
+```
+
+thereafter we combine our searched result with prof's prepared hdb dataset. There's one block that was not found earlier that was 141A Serangoon North Avenue 2. However that's a multistorey carpark and is not too critical, even though we have added that in for completeness
+
+```{r}
+newhdb <- read_csv("data/aspatial/hdb_updated.csv") %>%
+  mutate(population = round(
+           `1room_sold` * 2.1+
+           `2room_sold` * 2.1+
+           `3room_sold` * 2.5+
+           `4room_sold` * 3.3+
+           `5room_sold` * 3.7+
+           `exec_sold` * 3.7+
+           `multigen_sold` * 3.7+
+           `studio_apartment_sold`*2.1+
+           `1room_rental` * 2.1+
+           `2room_rental` * 2.1+
+           `3room_rental` * 2.5+
+           `other_room_rental` * 3.3)) %>%
+  filter(population > 0) %>%
+  select(addr, postal,population, max_floor_lvl, total_dwelling_units, lng, lat) %>%
+  unique()
+
+hdb_sf <- st_as_sf(newhdb,
+                   coords = c("lng","lat"),
+                   crs = 4326
+                   ) %>%
+  st_transform(crs = 3414) %>%
+  st_make_valid()
+
+#tmap_mode("view")
+tm_shape(sgp_simple)+
+  tm_polygons(col="white", 
+              alpha = 0.6,
+              border.alpha = 0.4) +
+  tm_shape(hdb_sf)+
+  tm_dots(col =  "population",
+          palette = "Reds")+
+  tm_layout(main.title = "HDB Block Population Distribution",
+            main.title.position = "center",
+            main.title.size = 1.2,
+            frame = TRUE) +
+  #tm_borders(alpha = 0.2)+
+  tm_compass(type = "4star",
+             size = 2)+
+  tm_scale_bar()+
+  tm_grid(alpha = 0.1)+
+  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
+             position = c("left","bottom"))+
+  tm_view(set.zoom.limits = c(11,16))
+  
+  rm(newhdb)
+  gc()
+```
+
+### **Education**
 
 ```{r}
 #| eval: false
@@ -1077,7 +1242,7 @@ tm_shape(sgp_simple)+
   tm_view(set.zoom.limits = c(11,16))
 ```
 
-### FOOD & ENTERTAINMENT
+### **Food & Entertainment**
 
 ```{r}
 #| eval: false
@@ -1333,7 +1498,7 @@ tm_shape(sgp_simple)+
   tm_view(set.zoom.limits = c(11,16))
 ```
 
-### WORK
+### **Work**
 
 ```{r}
 
@@ -1422,154 +1587,109 @@ tm_shape(sgp_simple)+
   tm_view(set.zoom.limits = c(11,16))
 ```
 
-### RESIDENTIAL
+### **Combining the different attributes**
+
+### **Count**
+
+```{r}
+sgp_hexid_attr_df <- sgp_hexid_wbs_geo %>%
+  select(hex_id,TOTAL_STOPS) %>%
+  rename(TOTAL_BUS_STOPS = TOTAL_STOPS) %>%
+  mutate(
+    TOTAL_BUS_INT = lengths(st_intersects(.,
+                                          sgbusstop %>%
+                                            filter(Interchange == "Interchange")
+                                          )),
+    TOTAL_MRT_INT = lengths(st_intersects(.,
+                                          trainpolygon_sf %>%
+                                            filter(Interchange == 1)
+                                          )),
+    TOTAL_MRT_STN = lengths(st_intersects(.,
+                                          trainpolygon_sf %>%
+                                            filter(TYP_CD_DES == "MRT",
+                                                   Interchange == 0)
+                                          )),
+    TOTAL_LRT_STN = lengths(st_intersects(.,
+                                          trainpolygon_sf %>%
+                                            filter(TYP_CD_DES == "LRT")
+                                                  )),
+    TOTAL_STN_EXIT = lengths(st_intersects(.,
+                                           trainexitpoint_sf
+                                                  )),    
+    TOTAL_PRE_SCHOOL = lengths(st_intersects(.,
+                                             preschool_sf
+                                                  )),       
+    TOTAL_PRI_SCHOOL = lengths(st_intersects(.,
+                                             prisch_sf
+                                                  )),       
+    TOTAL_SECJC_SCHOOL = lengths(st_intersects(.,
+                                               secjcsch_sf
+                                                  )),       
+    TOTAL_PTE_SCHOOL = lengths(st_intersects(.,
+                                             privateinstitution_sf
+                                                  )),       
+    TOTAL_TET_SCHOOL = lengths(st_intersects(.,
+                                             tetiary_sf
+                                                  )),       
+    TOTAL_FNB = lengths(st_intersects(.,
+                                      fnb_sf
+                                                  )),       
+    TOTAL_ENTERTAINMENT = lengths(st_intersects(.,
+                                                entertainment_sf
+                                                  )),       
+    TOTAL_TOURISM = lengths(st_intersects(.,
+                                          tourism_sf
+                                                  )),       
+    TOTAL_SILVERZONE = lengths(st_intersects(.,
+                                             silverszone_sf
+                                                  )),   
+    TOTAL_LEISURE = lengths(st_intersects(.,
+                                          leisure_sf
+                                                  )),   
+    TOTAL_RETAIL = lengths(st_intersects(.,
+                                         retail_sf
+                                                  )),       
+    TOTAL_FINSERV = lengths(st_intersects(.,
+                                          finserv_sf
+                                                  )),         
+    TOTAL_ELDERCARE = lengths(st_intersects(.,
+                                            eldercare_sf
+                                                  )),         
+    TOTAL_BUSINESS = lengths(st_intersects(.,
+                                           business_sf
+                                                  ))
+  )
+```
+
+#### **Sum**
 
 ```{r}
 
-hotel_sf <- st_read(dsn = "data/geospatial",
-                      layer = "HotelLocations-point") %>%
-  st_make_valid() %>%
-  st_transform(crs = 3414) %>%
-  select(Name, TOTALROOMS) %>%
-  unique()
+hdb_sf_hex <- st_intersection(hdb_sf,sgp_hexid) %>%
+  data.frame() %>%
+  group_by(hex_id) %>%
+  summarise(TOTAL_HDB_POP = sum(population),
+            TOTAL_HDB_UNIT = sum(total_dwelling_units))
 
-tm_shape(sgp_simple)+
-  tm_polygons(col="white", 
-              alpha = 0.6,
-              border.alpha = 0.4) +
-  tm_shape(hotel_sf)+
-  tm_dots()+
-  tm_layout(main.title = "Hotel Distribution",
-            main.title.position = "center",
-            main.title.size = 1.2,
-            frame = TRUE) +
-  #tm_borders(alpha = 0.2)+
-  tm_compass(type = "4star",
-             size = 2)+
-  tm_scale_bar()+
-  tm_grid(alpha = 0.1)+
-  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
-             position = c("left","bottom"))+
-  tm_view(set.zoom.limits = c(11,16))
+uradwelling_sf_hex <- st_intersection(uradwelling_sf,sgp_hexid) %>%
+  data.frame() %>%
+  group_by(hex_id) %>%
+  summarise(TOTAL_PTE_POP = sum(population),
+            TOTAL_PTE_UNIT = sum(DU))
+
+hotel_sf_hex <- st_intersection(hotel_sf,sgp_hexid) %>%
+  data.frame() %>%
+  group_by(hex_id) %>%
+  summarise(TOTAL_HOTEL_ROOM = sum(TOTALROOMS))
+
+
+sgp_hexid_attr_df <- left_join(sgp_hexid_attr_df,hdb_sf_hex)
+sgp_hexid_attr_df <- left_join(sgp_hexid_attr_df,uradwelling_sf_hex)
+sgp_hexid_attr_df <- left_join(sgp_hexid_attr_df,hotel_sf_hex)
+
+sgp_hexid_attr_df[is.na(sgp_hexid_attr_df)] <- 0
+
 ```
-
 ```{r}
-
-uradwelling_sf <- st_read(dsn = "data/geospatial",
-                      layer = "URANoofDwellingUnits") %>%
-  st_make_valid() %>%
-  st_transform(crs = 3414) %>%
-  select(POSTALCODE,PROJ_NAME,PROP_TYPE,DU) %>%
-  mutate(DU = as.numeric(DU),
-         PROP_TYPE = as.factor(PROP_TYPE),
-         population = round(ifelse(PROP_TYPE== "Landed",4.4,3.3) * DU )
-         ) %>%
-  unique()
-
-tm_shape(sgp_simple)+
-  tm_polygons(col="white", 
-              alpha = 0.6,
-              border.alpha = 0.4) +
-  tm_shape(uradwelling_sf)+
-  tm_dots(col="population")+
-  tm_layout(main.title = "URA Dwelling Distribution",
-            main.title.position = "center",
-            main.title.size = 1.2,
-            frame = TRUE) +
-  #tm_borders(alpha = 0.2)+
-  tm_compass(type = "4star",
-             size = 2)+
-  tm_scale_bar()+
-  tm_grid(alpha = 0.1)+
-  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
-             position = c("left","bottom"))+
-  tm_view(set.zoom.limits = c(11,16))
 ```
 
-```{r}
-#| eval: false
-
-url <- "https://www.onemap.gov.sg/api/common/elastic/search"
-
-hdb_raw <- read_csv("data/aspatial/hdb_tofind.csv") %>%
-  mutate(searchname = paste(blk_no,street, sep = " "))
-
-
-#initialisation, empty dataframe
-found <- data.frame()
-not_found <- data.frame()
-
-
-for (searchna in hdb_raw$searchname){
-  query <- list('searchVal'=searchna, 'returnGeom' = 'Y', 'getAddrDetails' = 'Y', 'pageNum' = '1')
-  res <- GET(url, query=query)
-  
-  if((content(res)$found) != 0){
-    found <- rbind(found,data.frame(content(res))[4:13])
-  } else {
-    not_found = data.frame(searchna)
-    found <- rbind(found,"")
-  }
-}
-```
-
-```{r}
-#| eval: false
-merged <- cbind(hdb_raw,found)
-write.csv(merged, file = 'data/aspatial/hdb_tofind_updated.csv')
-write.csv(found, file = 'data/aspatial/hdb_found.csv')
-write.csv(not_found, file = "data/aspatial/hdb_notfound.csv")
-```
-
-thereafter we combine our searched result with prof's prepared hdb dataset. There's one block that was not found earlier that was 141A Serangoon North Avenue 2. However that's a multistorey carpark and is not too critical, even though we have added that in for completeness
-
-```{r}
-newhdb <- read_csv("data/aspatial/hdb_updated.csv") %>%
-  mutate(population = round(
-           `1room_sold` * 2.1+
-           `2room_sold` * 2.1+
-           `3room_sold` * 2.5+
-           `4room_sold` * 3.3+
-           `5room_sold` * 3.7+
-           `exec_sold` * 3.7+
-           `multigen_sold` * 3.7+
-           `studio_apartment_sold`*2.1+
-           `1room_rental` * 2.1+
-           `2room_rental` * 2.1+
-           `3room_rental` * 2.5+
-           `other_room_rental` * 3.3)) %>%
-  filter(population > 0) %>%
-  select(addr, postal,population, max_floor_lvl, total_dwelling_units, lng, lat) %>%
-  unique()
-
-hdb_sf <- st_as_sf(newhdb,
-                   coords = c("lng","lat"),
-                   crs = 4326
-                   ) %>%
-  st_transform(crs = 3414) %>%
-  st_make_valid()
-
-#tmap_mode("view")
-tm_shape(sgp_simple)+
-  tm_polygons(col="white", 
-              alpha = 0.6,
-              border.alpha = 0.4) +
-  tm_shape(hdb_sf)+
-  tm_dots(col =  "population",
-          palette = "Reds")+
-  tm_layout(main.title = "HDB Block Population Distribution",
-            main.title.position = "center",
-            main.title.size = 1.2,
-            frame = TRUE) +
-  #tm_borders(alpha = 0.2)+
-  tm_compass(type = "4star",
-             size = 2)+
-  tm_scale_bar()+
-  tm_grid(alpha = 0.1)+
-  tm_credits("Source: URA, LTA Datamall, DATA.GOV.SG, ONEMAP, TRANSPORT.APP",
-             position = c("left","bottom"))+
-  tm_view(set.zoom.limits = c(11,16))
-  
-  rm(newhdb)
-  gc()
-```
