@@ -1,7 +1,7 @@
 ---
 title: "Take-home_Ex2"
 date: "02 December 2023"
-date-modified: "last-modified"
+date-modified: "17 December 2023"
 format:
   html: 
     code-fold: true
