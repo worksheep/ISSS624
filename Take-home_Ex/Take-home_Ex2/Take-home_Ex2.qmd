@@ -34,9 +34,19 @@ To aid us in the analysis, we are using R and the associated packages. We set th
 
 -   [**tidyverse**](https://www.tidyverse.org/): a collection of packages for data science tasks
 
--   **sfdep**: used to create spatial weights matrix objects
+-   [**sfdep**](https://sfdep.josiahparry.com/): used to create spatial weights matrix objects
 
--   **httr :** used to make API calls, especially to OneMap API to geocode the address
+-   [**httr**](https://httr.r-lib.org/)**:** used to make API calls, especially to OneMap API to geocode the address
+
+-   [**ggpubr**](https://rpkgs.datanovia.com/ggpubr/): used to make plots
+
+-   [**performance**](https://www.rdocumentation.org/packages/performance/versions/0.10.8): used to compare model performance
+
+-   [**reshape2**](https://www.rdocumentation.org/packages/reshape2/versions/1.4.4): used to convert wide to long
+
+-   [**sp**](https://cran.r-project.org/web/packages/sp/index.html): to calculate OD matrix. faster than sf
+
+-   [**stplnar**](https://cran.r-project.org/web/packages/stplanr/index.html): used to generate line from polygon
 
 ```{r}
 pacman::p_load(tmap, sf, tidyverse, sfdep, knitr, plotly, DT, lubridate, magick, httr, stplanr, sp, reshape2, performance, ggpubr)
@@ -1725,7 +1735,7 @@ rownames(dist_mat) <- paste0(sgp_hexid_wbsclean_matrix$hex_id)
 kable(head(dist_mat, n=c(10,10)))
 ```
 
-we see many 750 distance, which is the distance between neighbouring hexagons. This is because we generated the hexagons as such. Thereafter, lets "unpivot" the data. Thereafter, given that commuters can travel within the hexagon as well, we will need to replace the 0 distance with a distance roughly that people will walk ~ 300m
+we see many 750 distance, which is the distance between neighbouring hexagons. This is because we generated the hexagons as such. Thereafter, lets "unpivot" the data. Thereafter, given that commuters can travel within the hexagon as well, we will need to replace the 0 distance with a distance roughly that people will walk \~ 300m
 
 ```{r}
 distPair <- melt(dist_mat) %>%
@@ -1736,6 +1746,7 @@ distPair <- melt(dist_mat) %>%
 kable(head(distPair, 10))
 
 ```
+
 ```{r}
 distPair <- replace_in_dataframe(distPair,"DISTANCE",0,300)
 kable(head(distPair, 10))
@@ -1754,8 +1765,7 @@ write_rds(distPair, "data/rds/distPair.rds")
 
 ## Spatial Model
 
-###Replacing 0
-We are using a log model, and log(0) is infinity
+###Replacing 0 We are using a log model, and log(0) is infinity
 
 ```{r}
 sgp_hexid_attr_df_cali <- replace_in_dataframe(sgp_hexid_attr_df,"TOTAL_BUS_STOPS",0,0.5)
@@ -1827,9 +1837,11 @@ flowmerge <- flowlines %>%
   left_join(ORIGIN_ATTR) %>%
   left_join(DESTINATION_ATTR)
 ```
+
 ```{r}
 summary(flowmerge)
 ```
+
 ::: callout-save
 ```{r}
 #| eval: false
@@ -1842,7 +1854,7 @@ write_rds(flowmerge, "data/rds/flowmerge.rds")
 
 #### Uncontraint
 
-```
+```         
 #|eval: false
 rm(list = ls())
 flowmerge_interzonal <- read_rds("data/rds/flowmerge.rds") %>%
@@ -1895,9 +1907,10 @@ write_rds(unconstraint, "data/rds/unconstraint.rds")
 unconstraint <- read_rds("data/rds/unconstraint.rds")
 summary(unconstraint)
 ```
+
 #### Origin Constraint
 
-```
+```         
 #|eval: false
 
 rm(list = ls())
@@ -1945,7 +1958,6 @@ origin_cons <- glm(
   )
 
 write_rds(origin_cons, "data/rds/origin_cons.rds")
-
 ```
 
 ```{r}
@@ -1955,7 +1967,7 @@ summary(origin_cons)
 
 #### Destination Constraint
 
-```
+```         
 #|eval: false
 
 rm(list = ls())
@@ -1991,7 +2003,7 @@ summary(destination_cons)
 
 #### Doubly Constraint
 
-```
+```         
 #|eval: false
 
 rm(list = ls())
@@ -2015,23 +2027,36 @@ write_rds(doubly_constraint, "data/rds/doubly_constraint.rds")
 doubly_constraint <- read_rds("data/rds/doubly_constraint.rds")
 summary(doubly_constraint)
 ```
-### Model Discussion
 
-I included a lot of other variables to explain the situation. However i am fairly surprise that they are all significant, given the possibility of repeated variables such as MRT/LRT STN with MRT/LRT Exit. 
+### Coefficient Discussion
 
-1) ORIGIN_TOTAL_PTE_POP, it is negative instead of positive, i will expect higher population correlate to higher trips. A possibility is people living in Condo / Landed could be using more of private transport instead of public transport
-2) ORIGIN_HOTEL_ROOMS, it is negative instead of positive. i will expect more hotel room correlated to higher tourist. Thus higher trips. A possibility is they don't go out so early for tourist location, or they are living near to their destination thus no need for further transport. Since most hotels are centrally located
-3) ORIGIN_MRT / LRT. it is negative. Not unexpected, since commuters may prefer MRT if they are nearer to MRT than buses
-4) DESTINATION MRT / LRT. it is negative. Likewise to above, commuters may prefer to take the MRT to this location if the destination is near to MRT.
-5) DESTINATION PRE SCHOOl. negative, perhaps due to the fact that most people will prefer a pre school that is near their house for convinence
-6) DESTINATION TETIARY SCHOOL. positive. i thought it may not be that significant since Tetiary Education have staggered timetable for different students. However, it seems that a big part still go to school early. One possibility is the data is Aug23, which conincide with starting of school term for most tetiary schools. Will be interesting to see if it is positive throughout the year, especially during school break
-7) DESTINATION HAWKER. negative. perhaps i should put it as ORIGIN instead of DESTINATION, because we may tend to eat nearby before going to work, instead of going to a hawker via bus in the morning peak hour
+I included a lot of other variables to explain the situation. However i am fairly surprise that they are all significant, given the possibility of repeated variables such as MRT/LRT STN with MRT/LRT Exit.
 
-
+1)  ORIGIN_TOTAL_PTE_POP, it is negative instead of positive, i will expect higher population correlate to higher trips. A possibility is people living in Condo / Landed could be using more of private transport instead of public transport
+2)  ORIGIN_HOTEL_ROOMS, it is negative instead of positive. i will expect more hotel room correlated to higher tourist. Thus higher trips. A possibility is they don't go out so early for tourist location, or they are living near to their destination thus no need for further transport. Since most hotels are centrally located
+3)  ORIGIN_MRT / LRT. it is negative. Not unexpected, since commuters may prefer MRT if they are nearer to MRT than buses
+4)  DESTINATION MRT / LRT. it is negative. Likewise to above, commuters may prefer to take the MRT to this location if the destination is near to MRT.
+5)  DESTINATION PRE SCHOOl. negative, perhaps due to the fact that most people will prefer a pre school that is near their house for convinence
+6)  DESTINATION TETIARY SCHOOL. positive. i thought it may not be that significant since Tetiary Education have staggered timetable for different students. However, it seems that a big part still go to school early. One possibility is the data is Aug23, which conincide with starting of school term for most tetiary schools. Will be interesting to see if it is positive throughout the year, especially during school break
+7)  DESTINATION HAWKER. negative. perhaps i should put it as ORIGIN instead of DESTINATION, because we may tend to eat nearby before going to work, instead of going to a hawker via bus in the morning peak hour
 
 ### Model Comparison
 
-The Doubly Constrained model has the lowest Root Mean Square Error, i.e. giving the highest prediction accuracy. However given that i have included some many variables in trying to explain the transport flow. I could be overfitting, e.g. on station exit and MRT/LRT Station, they are kind of the same thing.
+The Doubly Constrained model has the lowest Root Mean Square Error, i.e. giving the highest prediction accuracy. However given that i have included many variables in trying to explain the transport flow. I could be overfitting, e.g. on station exit and MRT/LRT Station, they are kind of the same thing. Which resulted in a lower AIC / BIC despite having a lower R^2 and higher RMSE
+
+```{r}
+unconstraint_r2 <- calcr2(unconstraint$data$TOTAL_TRIPS, unconstraint$fitted.values)
+origin_cons_r2 <- calcr2(origin_cons$data$TOTAL_TRIPS, origin_cons$fitted.values)
+destination_cons_r2 <- calcr2(destination_cons$data$TOTAL_TRIPS, destination_cons$fitted.values)
+doubly_constraint_r2 <- calcr2(doubly_constraint$data$TOTAL_TRIPS, doubly_constraint$fitted.values)
+```
+
+| Model                  | R2                    |
+|------------------------|-----------------------|
+| Unconstraint           |0.34                   |
+| Origin Constraint      |0.46                   |
+| Destination Constraint |0.43                   |
+| Doubly Constraint      |0.59                   |
 
 ```{r}
 model_list <- list(
@@ -2107,5 +2132,4 @@ ggarrange(uncon_p, orig_p,dest_p,docon_p,
 
 There seem to be some unexplained variables that are still being captured by the "location", given that the best model is the unconstraint model. Despite the addition of multiple variables, it doesn't seem to carry much gravity in explaning the transport pattern of commuters much more than the "location" itself. It will seem that commuters have different reasons for going to places and BUS journey serve the last mile & door-to-door depending on the commuters' choice, thus making it more heterogenous than perhaps MRT journey.
 
-Distance is a key factor for bus trips, however this could largely be due to the current model that Singapore is pursuing. We are expanding our MRT lines and intend to make our commuters within 10-15mins away from a MRT. This will eventually make buses more of the "short distance" transport that carries our commuters to the MRT instead. An example is the recent intention to cancel the bus service 167. [https://www.channelnewsasia.com/singapore/bus-service-167-ridership-falls-lta-commuters-unhappy-3928596]
-If we go back to 1980s [https://www.youtube.com/watch?v=DnfsYldEE7M], where the govt was reviewing the need for MRT immediately, and if we should expand express bus services, things could turn out quite differently.
+Distance is a key factor for bus trips, however this could largely be due to the current model that Singapore is pursuing. We are expanding our MRT lines and intend to make our commuters within 10-15mins away from a MRT. This will eventually make buses more of the "short distance" transport that carries our commuters to the MRT instead. An example is the recent intention to cancel the bus service 167. \[https://www.channelnewsasia.com/singapore/bus-service-167-ridership-falls-lta-commuters-unhappy-3928596\] If we go back to 1980s \[https://www.youtube.com/watch?v=DnfsYldEE7M\], where the govt was reviewing the need for MRT immediately, and if we should expand express bus services, things could turn out quite differently.
